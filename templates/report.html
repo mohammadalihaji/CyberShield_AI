@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberShield AI - Security Report #{{ report.id }}</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+            --muted: #64748b;
+            --risk-safe: #10b981;
+            --risk-suspicious: #f59e0b;
+            --risk-malicious: #ef4444;
+            --brand: #0284c7;
+            --dark: #0f172a;
+            --light-bg: #f8fafc;
+            --code-bg: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 40px;
+        }
+
+        .report-wrapper {
+            max-width: 860px;
+            margin: 0 auto;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 40px;
+            background: #fff;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+        }
+
+        /* Top control bar */
+        .control-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+
+        .btn-print {
+            background-color: var(--dark);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .btn-print:hover {
+            background-color: #0f172a;
+        }
+
+        /* Header design */
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+        }
+
+        .brand-section h1 {
+            font-weight: 800;
+            font-size: 26px;
+            color: var(--dark);
+            letter-spacing: -0.5px;
+        }
+
+        .brand-section span {
+            color: var(--brand);
+        }
+
+        .brand-section p {
+            color: var(--muted);
+            font-size: 13px;
+            margin-top: 5px;
+        }
+
+        .metadata-section {
+            text-align: right;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .metadata-section span {
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        /* Summary boxes */
+        .summary-card {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            background-color: var(--light-bg);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .target-tested h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--muted);
+            margin-bottom: 5px;
+        }
+
+        .target-tested code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            background: var(--code-bg);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .verdict-pill {
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #fff;
+        }
+
+        .verdict-pill.safe, .verdict-pill.strong, .verdict-pill.clean {
+            background-color: var(--risk-safe);
+        }
+
+        .verdict-pill.suspicious, .verdict-pill.medium, .verdict-pill.vulnerable {
+            background-color: var(--risk-suspicious);
+        }
+
+        .verdict-pill.malicious, .verdict-pill.weak, .verdict-pill.critical {
+            background-color: var(--risk-malicious);
+        }
+
+        /* Details list */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 35px;
+        }
+
+        .feature-item {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+            background: var(--light-bg);
+        }
+
+        .feature-item .val {
+            font-size: 18px;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 5px;
+            color: var(--dark);
+        }
+
+        .feature-item .lbl {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        /* Narrative markdown content */
+        .technical-narrative {
+            border-top: 1px solid var(--border-color);
+            padding-top: 30px;
+            margin-top: 10px;
+        }
+
+        .technical-narrative h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 15px;
+        }
+
+        .markdown-rendered-body {
+            font-size: 15px;
+            color: #334155;
+        }
+
+        .markdown-rendered-body h1,
+        .markdown-rendered-body h2,
+        .markdown-rendered-body h3,
+        .markdown-rendered-body h4 {
+            color: var(--dark);
+            margin: 22px 0 10px;
+            font-weight: 600;
+        }
+
+        .markdown-rendered-body h1 { font-size: 22px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; }
+        .markdown-rendered-body h2 { font-size: 19px; }
+        .markdown-rendered-body h3 { font-size: 16px; color: var(--brand); }
+        .markdown-rendered-body h4 { font-size: 14px; }
+
+        .markdown-rendered-body p {
+            margin-bottom: 12px;
+        }
+
+        .markdown-rendered-body ul {
+            margin-left: 24px;
+            margin-bottom: 15px;
+        }
+
+        .markdown-rendered-body ol {
+            margin-left: 24px;
+            margin-bottom: 15px;
+        }
+
+        .markdown-rendered-body li {
+            margin-bottom: 6px;
+        }
+
+        .markdown-rendered-body strong {
+            color: var(--dark);
+        }
+
+        .markdown-rendered-body code {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--code-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .markdown-rendered-body blockquote {
+            border-left: 4px solid var(--brand);
+            padding: 10px 16px;
+            background: var(--light-bg);
+            border-radius: 0 6px 6px 0;
+            margin-bottom: 15px;
+            color: var(--muted);
+        }
+
+        .markdown-rendered-body hr {
+            border: none;
+            border-top: 1px dashed var(--border-color);
+            margin: 20px 0;
+        }
+
+        /* Footer info */
+        .report-footer {
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #94a3b8;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        /* PRINT MEDIA RULES */
+        @media print {
+            body {
+                padding: 0;
+                background-color: white;
+            }
+
+            .control-bar {
+                display: none !important;
+            }
+
+            .report-wrapper {
+                border: none;
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+            }
+
+            .feature-item {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-wrapper">
+        <!-- Control Header Bar -->
+        <div class="control-bar">
+            <span>Audit Registry File: <b>#CS-{{ report.id }}</b></span>
+            <button onclick="window.print()" class="btn-print">
+                <i class="fa-solid fa-print"></i> Export / Print PDF
+            </button>
+        </div>
+
+        <!-- Report Header -->
+        <header class="report-header">
+            <div class="brand-section">
+                <h1>CYBER<span>SHIELD</span> AI</h1>
+                <p>AI-Powered Threat Assessment &amp; Security Registry</p>
+            </div>
+
+            <div class="metadata-section">
+                <span><b>Log UID:</b> XML-CS90{{ report.id }}</span>
+                <span><b>Scan Module:</b> {{ (report.scan_type or 'system') | upper }}</span>
+                <span><b>Timestamp:</b> {{ report.timestamp or report.created_at }}</span>
+            </div>
+        </header>
+
+        <!-- Glance Summary Card -->
+        <div class="summary-card">
+            <div class="target-tested">
+                <h3>Audited Target</h3>
+                <code>{{ report.input_data if report.input_data else report.title }}</code>
+            </div>
+
+            <div class="verdict-pill {{ (report.risk_level or 'suspicious').lower() }}">
+                Risk: {{ report.risk_level or 'N/A' }}
+            </div>
+        </div>
+
+        <!-- Telemetry Parameters Metrics -->
+        <div class="features-grid">
+            {% if report.scan_type == 'website' %}
+                <div class="feature-item">
+                    <span class="val">{{ 'DETECTED' if report.result_json.get('malware_found') else 'CLEAN' }}</span>
+                    <span class="lbl">Malware Scan</span>
+                </div>
+            {% elif report.scan_type == 'image' %}
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('ai_probability', report.result_json.get('ai_confidence', 'N/A')) }}%</span>
+                    <span class="lbl">AI Probability</span>
+                </div>
+            {% elif report.scan_type == 'email' %}
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('phishing_score', 'N/A') }}%</span>
+                    <span class="lbl">Fraud Score</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('suspicious_links', 0) }}</span>
+                    <span class="lbl">Hyperlinks Count</span>
+                </div>
+            {% elif report.scan_type == 'password' %}
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('entropy', 0) }} bits</span>
+                    <span class="lbl">Password Entropy</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('pwned_count', 0) }} times</span>
+                    <span class="lbl">Breach Occurrences</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val">{{ 'YES' if report.result_json.get('has_special') else 'NO' }}</span>
+                    <span class="lbl">Special Characters</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val" style="font-size:12px;">{{ report.result_json.get('estimated_crack_time', 'N/A') }}</span>
+                    <span class="lbl">Est. Crack Time</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val" style="font-size:12px;">{{ report.result_json.get('dictionary_risk', 'Not Assessed') }}</span>
+                    <span class="lbl">Dictionary Risk</span>
+                </div>
+            {% elif report.scan_type == 'profile' %}
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('overall_score', 0) }}/100</span>
+                    <span class="lbl">Posture Score</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('recommendation_count', 'N/A') }}</span>
+                    <span class="lbl">Mitigations Pending</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val">SYSTEM</span>
+                    <span class="lbl">Security Advisor</span>
+                </div>
+            {% else %}
+                <div class="feature-item">
+                    <span class="val">SYSTEM</span>
+                    <span class="lbl">Cyber Shield Status</span>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Technical Report Narrative -->
+        <article class="technical-narrative">
+            <h2>Detailed Security Analysis</h2>
+            <div class="markdown-rendered-body" id="rendered-md-content"></div>
+        </article>
+
+        <!-- Report Footer -->
+        <footer class="report-footer">
+            <span>Powered by CyberShield AI Diagnostic Engine.</span>
+            <span>Ref ID: HASH-F89A-{{ report.id }}</span>
+            <span>Internal Security Classification: Confidential</span>
+        </footer>
+    </div>
+
+    <script type="text/plain" id="raw-markdown-source">{{ report.raw_detail if report.raw_detail else report.explanation_markdown | escape }}</script>
+
+    <script>
+        // Professional Markdown renderer for XAI reports
+        document.addEventListener('DOMContentLoaded', function() {
+            const rawEl = document.getElementById('rendered-md-content');
+            const sourceEl = document.getElementById('raw-markdown-source');
+            let content = sourceEl ? sourceEl.textContent : '';
+            if (!content || content.trim() === '') {
+                rawEl.innerHTML = '<p><em>No detailed analysis content is available for this report.</em></p>';
+                return;
+            }
+
+            // Decode HTML entities introduced by Jinja escaping.
+            content = content.replace(/&amp;/g, '&')
+                             .replace(/</g, '<')
+                             .replace(/>/g, '>')
+                             .replace(/"/g, '"')
+                             .replace(/&#0?39;/g, "'");
+
+            // --- Headings ---
+            content = content.replace(/^####[ \t]+(.*?)$/gm, '<h4>$1</h4>');
+            content = content.replace(/^###[ \t]+(.*?)$/gm, '<h3>$1</h3>');
+            content = content.replace(/^##[ \t]+(.*?)$/gm, '<h2>$1</h2>');
+            content = content.replace(/^#[ \t]+(.*?)$/gm, '<h1>$1</h1>');
+
+            // --- Horizontal rules ---
+            content = content.replace(/^---+$/gm, '<hr>');
+
+            // --- Bold / Italic ---
+            content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+            // --- Inline code ---
+            content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // --- Blockquotes ---
+            content = content.replace(/^[ \t]*>[ \t]*(.+)$/gm, '<blockquote>$1</blockquote>');
+            content = content.replace(/^[ \t]*>[ \t]*(.+)$/gm, '<blockquote>$1</blockquote>');
+
+            // --- Bullet lists ---
+            content = content.replace(/^[ \t]*[\*\-][ \t]+(.*)$/gm, '<li>$1</li>');
+            content = content.replace(/(<li>[\s\S]*?<\/li>)/g, function(m) { return '<ul>' + m + '</ul>'; });
+            content = content.replace(/<\/ul>\s*<ul>/g, '');
+
+            // --- Numbered lists ---
+            content = content.replace(/^[ \t]*\d+\.\s+(.*)$/gm, '<li>$1</li>');
+            content = content.replace(/(<li>[\s\S]*?<\/li>)/g, function(m) { return '<ol>' + m + '</ol>'; });
+            content = content.replace(/<\/ol>\s*<ol>/g, '');
+
+            // --- Paragraphs (wrap remaining non-block text) ---
+            const lines = content.split(/\n{2,}/);
+            const processed = lines.map(function(line) {
+                const t = line.trim();
+                if (!t) return '';
+                if (t.indexOf('<h') === 0 || t.indexOf('<ul') === 0 || t.indexOf('<ol') === 0 ||
+                    t.indexOf('<li') === 0 || t.indexOf('<hr') === 0 || t.indexOf('<blockquote') === 0) {
+                    return line;
+                }
+                return '<p>' + line.replace(/\n/g, '<br>') + '</p>';
+            });
+
+            rawEl.innerHTML = processed.join('');
+        });
+    </script>
+</body>
+</html>
+

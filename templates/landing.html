@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberShield AI – Intelligent Threat Analytics Hub</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        /* ===== Landing Page Specific Styles ===== */
+        body {
+            background: var(--bg-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(157, 78, 221, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(0, 242, 254, 0.12) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(0, 242, 254, 0.03) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        .landing-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Top Nav Bar */
+        .landing-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border-glow);
+        }
+
+        .landing-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .landing-brand .logo-glow-dot {
+            width: 10px;
+            height: 10px;
+            background-color: var(--color-cyan);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--color-cyan);
+            animation: pulse 2s infinite;
+        }
+
+        .landing-brand h1 {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: var(--text-primary);
+        }
+
+        .landing-brand h1 span {
+            color: var(--color-cyan);
+        }
+
+        .landing-brand h1 small {
+            font-size: 10px;
+            background: var(--color-purple);
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-left: 4px;
+            font-weight: bold;
+        }
+
+        .landing-nav-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .landing-nav-buttons .btn {
+            padding: 10px 22px;
+            font-size: 13px;
+        }
+
+        /* Hero Section */
+        .landing-hero {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .hero-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 242, 254, 0.08);
+            border: 1px solid var(--border-glow);
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-size: 13px;
+            color: var(--color-cyan);
+            font-weight: 500;
+            margin-bottom: 32px;
+        }
+
+        .hero-pill i {
+            font-size: 16px;
+        }
+
+        .hero-title {
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1.15;
+            color: var(--text-primary);
+            max-width: 800px;
+            margin-bottom: 24px;
+        }
+
+        .hero-title .highlight {
+            background: linear-gradient(135deg, var(--color-cyan), var(--color-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 680px;
+            line-height: 1.6;
+            margin-bottom: 40px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-hero {
+            padding: 16px 36px;
+            font-size: 16px;
+            border-radius: 12px;
+            font-weight: 700;
+            min-width: 200px;
+        }
+
+        .btn-hero-outline {
+            background: transparent;
+            border: 2px solid var(--border-glow-active);
+            color: var(--color-cyan);
+            box-shadow: none;
+        }
+
+        .btn-hero-outline:hover {
+            background: rgba(0, 242, 254, 0.06);
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.15);
+            transform: translateY(-1px);
+        }
+
+        /* Stats Banner */
+        .landing-stats {
+            display: flex;
+            gap: 32px;
+            justify-content: center;
+            margin-top: 48px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            padding: 16px 28px;
+            border-radius: 12px;
+            backdrop-filter: blur(16px);
+        }
+
+        .stat-item i {
+            font-size: 28px;
+        }
+
+        .stat-meta {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+        }
+
+        .stat-meta .stat-num {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+
+        .stat-meta .stat-lbl {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Features Grid */
+        .features-section {
+            padding: 60px 0 40px;
+        }
+
+        .features-section h2 {
+            text-align: center;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .features-section > p {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 40px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .hero-title {
+                font-size: 34px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            .hero-title {
+                font-size: 28px;
+            }
+            .landing-nav-buttons .btn {
+                padding: 8px 14px;
+                font-size: 11px;
+            }
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            padding: 28px 24px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(16px);
+        }
+
+        .feature-card:hover {
+            border-color: var(--color-cyan);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 242, 254, 0.08);
+        }
+
+        .feature-card .f-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 16px;
+        }
+
+        .feature-card .f-icon.cyan { background: rgba(0, 242, 254, 0.1); color: var(--color-cyan); border: 1px solid rgba(0, 242, 254, 0.15); }
+        .feature-card .f-icon.purple { background: rgba(157, 78, 221, 0.1); color: var(--color-purple); border: 1px solid rgba(157, 78, 221, 0.15); }
+        .feature-card .f-icon.red { background: rgba(255, 51, 102, 0.1); color: var(--color-danger); border: 1px solid rgba(255, 51, 102, 0.15); }
+        .feature-card .f-icon.green { background: rgba(0, 230, 118, 0.1); color: var(--color-safe); border: 1px solid rgba(0, 230, 118, 0.15); }
+        .feature-card .f-icon.yellow { background: rgba(255, 179, 0, 0.1); color: var(--color-warning); border: 1px solid rgba(255, 179, 0, 0.15); }
+        .feature-card .f-icon.blue { background: rgba(0, 150, 255, 0.1); color: #0096ff; border: 1px solid rgba(0, 150, 255, 0.15); }
+
+        .feature-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Footer */
+        .landing-footer {
+            text-align: center;
+            padding: 24px 0;
+            border-top: 1px solid var(--border-glow);
+            margin-top: 20px;
+        }
+
+        .landing-footer p {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Responsive hero */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 28px;
+            }
+            .hero-subtitle {
+                font-size: 15px;
+            }
+            .btn-hero {
+                padding: 14px 24px;
+                font-size: 14px;
+                min-width: 160px;
+            }
+            .stat-item {
+                padding: 12px 18px;
+            }
+            .stat-meta .stat-num {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="landing-wrapper">
+        <!-- Top Navigation -->
+        <nav class="landing-nav">
+            <div class="landing-brand">
+                <div class="logo-glow-dot"></div>
+                <h1>CYBER<span>SHIELD</span> <small>AI</small></h1>
+            </div>
+            <div class="landing-nav-buttons">
+                <button class="btn btn-secondary" id="landing-btn-login">
+                    <i class="fa-solid fa-right-to-bracket"></i> Sign In
+                </button>
+                <button class="btn btn-primary" id="landing-btn-register">
+                    <i class="fa-solid fa-user-plus"></i> Register
+                </button>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <section class="landing-hero">
+            <div class="hero-pill">
+                <i class="fa-solid fa-shield-halved"></i> Autonomous Neural Security Node v1.5
+            </div>
+            <h1 class="hero-title">
+                Advanced AI Cybersecurity & <span class="highlight">Threat Intelligence Platform</span>
+            </h1>
+            <p class="hero-subtitle">
+                Shield your infrastructure and digital identity against phishing vectors, deepfake image tampering, 
+                compromised passwords, and malicious domains using real-time machine intelligence powered by Google Gemini.
+            </p>
+            <div class="hero-actions">
+                <button class="btn btn-primary btn-hero" id="hero-btn-register">
+                    <i class="fa-solid fa-user-plus"></i> Create Free Account
+                </button>
+                <button class="btn btn-hero btn-hero-outline" id="hero-btn-login">
+                    <i class="fa-solid fa-right-to-bracket"></i> Sign In to Platform
+                </button>
+            </div>
+
+            <!-- Stats Banner -->
+            <div class="landing-stats">
+                <div class="stat-item">
+                    <i class="fa-solid fa-microchip cyan-text"></i>
+                    <div class="stat-meta">
+                        <span class="stat-num" id="landing-total-scans">{{ stats.total_scans }}</span>
+                        <span class="stat-lbl">Audits Executed</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <i class="fa-solid fa-user-shield green-text"></i>
+                    <div class="stat-meta">
+                        <span class="stat-num" id="landing-threats-blocked">{{ stats.threats_blocked }}</span>
+                        <span class="stat-lbl">Vectors Intercepted</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <i class="fa-solid fa-database yellow-text"></i>
+                    <div class="stat-meta">
+                        <span class="stat-num">MySQL 8.0</span>
+                        <span class="stat-lbl">ACID Compliant DB</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features-section">
+            <h2><i class="fa-solid fa-cubes text-cyan"></i> CyberShield Defense Capabilities</h2>
+            <p>Explore our integrated artificial intelligence security auditing suites.</p>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="f-icon cyan"><i class="fa-solid fa-globe"></i></div>
+                    <h3>Website Security Audit</h3>
+                    <p>Scans domain age, SSL validity, malware payloads, and phishing heuristics in real-time.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="f-icon purple"><i class="fa-solid fa-image"></i></div>
+                    <h3>Deepfake & Image Forensics</h3>
+                    <p>Detects synthetic face manipulation, GAN spectral artifacts, and metadata compression noise.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="f-icon red"><i class="fa-solid fa-envelope-open-text"></i></div>
+                    <h3>Email Phishing Inspector</h3>
+                    <p>Analyzes sender SPF alignments, social engineering urgency hooks, and suspicious URLs.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="f-icon green"><i class="fa-solid fa-key"></i></div>
+                    <h3>Password Strength & Breach Audit</h3>
+                    <p>Computes mathematical bit entropy and checks HIBP database breach leaks.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="f-icon yellow"><i class="fa-solid fa-shield-halved"></i></div>
+                    <h3>Personal Posture Advisor</h3>
+                    <p>Evaluates multi-factor authentication, backup redundancy, and custom hardening steps.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="f-icon blue"><i class="fa-solid fa-circle-nodes"></i></div>
+                    <h3>AI Security Assistant</h3>
+                    <p>Interactive neural chat node for immediate cybersecurity threat advice and incident response.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="landing-footer">
+            <p>CyberShield AI Engine &copy; 2026. Made with Python Flask &amp; Google Gemini for advanced web threat assessments. Secure Sandbox Environments.</p>
+        </footer>
+    </div>
+
+    <!-- ===== Auth Modals ===== -->
+    <!-- Login Modal -->
+    <div class="auth-modal-backdrop hidden" id="modal-login">
+        <div class="auth-modal-card">
+            <div class="auth-modal-header">
+                <h3><i class="fa-solid fa-right-to-bracket text-cyan"></i> Sign In to CyberShield AI</h3>
+                <button class="btn-close-modal" id="btn-close-login"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-login" class="auth-form">
+                <div class="form-group">
+                    <label><i class="fa-solid fa-user"></i> Username or Email</label>
+                    <input type="text" id="login-identifier" class="form-control" placeholder="Enter username or email" required>
+                </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-key"></i> Password</label>
+                    <input type="password" id="login-password" class="form-control" placeholder="Enter password" required>
+                </div>
+                <div class="auth-error-msg hidden" id="login-error-msg"></div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-submit-login">
+                    <span>Authenticate</span> <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+            <div class="auth-modal-footer">
+                <span>Don't have an account? <a href="#" id="link-switch-to-register">Register here</a></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div class="auth-modal-backdrop hidden" id="modal-register">
+        <div class="auth-modal-card">
+            <div class="auth-modal-header">
+                <h3><i class="fa-solid fa-user-plus text-cyan"></i> Create CyberShield Account</h3>
+                <button class="btn-close-modal" id="btn-close-register"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-register" class="auth-form">
+                <div class="form-group">
+                    <label><i class="fa-solid fa-user"></i> Username</label>
+                    <input type="text" id="reg-username" class="form-control" placeholder="Choose a username" required>
+                </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-envelope"></i> Email Address</label>
+                    <input type="email" id="reg-email" class="form-control" placeholder="name@domain.com" required>
+                </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-lock"></i> Password</label>
+                    <input type="password" id="reg-password" class="form-control" placeholder="At least 6 characters" required>
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>First Name</label>
+                        <input type="text" id="reg-first-name" class="form-control" placeholder="Optional">
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name</label>
+                        <input type="text" id="reg-last-name" class="form-control" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="auth-error-msg hidden" id="reg-error-msg"></div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-submit-register">
+                    <span>Register Account</span> <i class="fa-solid fa-shield-halved"></i>
+                </button>
+            </form>
+            <div class="auth-modal-footer">
+                <span>Already have an account? <a href="#" id="link-switch-to-login">Sign in</a></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

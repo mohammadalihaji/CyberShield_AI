@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberShield AI – Intelligent Threat Analytics Hub</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons for modern dashboard styling -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="cyber-grid-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar-wrapper">
+            <div class="brand-header">
+                <div class="logo-glow-dot"></div>
+                <h2>CYBER<span>SHIELD</span> <small>AI</small></h2>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item active" data-tab="overview">
+                        <i class="fa-solid fa-gauge-high"></i>
+                        <span>Threat Dashboard</span>
+                    </li>
+                    <li class="nav-item" data-tab="website">
+                        <i class="fa-solid fa-globe"></i>
+                        <span>Website Safety</span>
+                    </li>
+                    <li class="nav-item" data-tab="image">
+                        <i class="fa-solid fa-image"></i>
+                        <span>Image Authenticator</span>
+                    </li>
+                    <li class="nav-item" data-tab="email">
+                        <i class="fa-solid fa-envelope-open-text"></i>
+                        <span>Email Phishing</span>
+                    </li>
+                    <li class="nav-item" data-tab="password">
+                        <i class="fa-solid fa-key"></i>
+                        <span>Password Strength</span>
+                    </li>
+                    <li class="nav-item" data-tab="advisor">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Security Advisor</span>
+                    </li>
+                    <li class="nav-item" data-tab="chatbot">
+                        <i class="fa-solid fa-circle-nodes"></i>
+                        <span>AI Assistant</span>
+                    </li>
+                    <li class="nav-item" id="nav-item-profile" onclick="window.location.href='/profile'">
+                        <i class="fa-solid fa-user-gear"></i>
+                        <span>My Profile</span>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="license-badge">
+                    <span class="pulse-indicator green"></span>
+                    <span class="badge-lbl">Engine Active (v1.5)</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-workspace">
+            <!-- Top Controls and Status -->
+            <header class="top-status-header">
+                <div class="status-summary-group">
+                    <div class="mini-status-card">
+                        <i class="fa-solid fa-magnifying-glass-shield cyan-text"></i>
+                        <div class="mini-details">
+                            <span class="val" id="header-total-scans">{{ stats.total_scans }}</span>
+                            <span class="label">Total Audits</span>
+                        </div>
+                    </div>
+                    <div class="mini-status-card">
+                        <i class="fa-solid fa-shield-virus red-text"></i>
+                        <div class="mini-details">
+                            <span class="val" id="header-threats-blocked">{{ stats.threats_blocked }}</span>
+                            <span class="label">Threats Logged</span>
+                        </div>
+                    </div>
+                    <div class="mini-status-card">
+                        <i class="fa-solid fa-heart-pulse green-text"></i>
+                        <div class="mini-details">
+                            <span class="val" id="header-security-score">{{ stats.security_score }}%</span>
+                            <span class="label">Integrity Index</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="header-right-controls">
+                    <div class="system-time">
+                        <span id="live-clock">--:--:--</span>
+                        <span class="demo-pill">DB: MySQL</span>
+                    </div>
+                    
+                    <div class="user-auth-widget" id="user-auth-widget">
+                        {% if current_user %}
+                            <div class="user-profile-badge">
+                                <i class="fa-solid fa-user-shield text-cyan"></i>
+                                <span class="user-name-display">{{ current_user.username }}</span>
+                                <button class="btn btn-secondary btn-sm" id="btn-user-logout" title="Log Out">
+                                    <i class="fa-solid fa-right-from-bracket"></i>
+                                </button>
+                            </div>
+                        {% else %}
+                            <div class="auth-buttons-group">
+                                <button class="btn btn-secondary btn-sm" id="btn-open-login">
+                                    <i class="fa-solid fa-right-to-bracket"></i> Sign In
+                                </button>
+                                <button class="btn btn-primary btn-sm" id="btn-open-register">
+                                    <i class="fa-solid fa-user-plus"></i> Register
+                                </button>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Content Panels -->
+            <section class="panels-container">
+                
+                <!-- 1. Threat Overview Dashboard -->
+                <div class="tab-panel active" id="panel-overview">
+                    <h2 class="panel-title"><i class="fa-solid fa-gauge-high"></i> Threat Control Dashboard</h2>
+                    <p class="panel-desc">Real-time status of security configurations and threat logging history.</p>
+                    
+                    <div class="dashboard-grid-layout">
+                        <!-- Left Big Stats Glass Card -->
+                        <div class="glass-card big-metrics-card">
+                            <h3>Security Posture Rating</h3>
+                            <div class="radial-gauge-container">
+                                <svg viewBox="0 0 100 100" class="radial-svg">
+                                    <circle class="bg-circle" cx="50" cy="50" r="40"></circle>
+                                    <circle class="progress-circle" id="posture-gauge" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="{{ 251.2 - (251.2 * stats.security_score / 100) }}"></circle>
+                                </svg>
+                                <div class="gauge-percentage">
+                                    <span id="posture-score-display">{{ stats.security_score }}%</span>
+                                    <span class="gauge-lbl" id="posture-rating-lbl">
+                                        {% if stats.security_score >= 80 %}SECURE{% elif stats.security_score >= 50 %}VULNERABLE{% else %}CRITICAL{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="badge-status-details">
+                                <div class="stat-bullet">
+                                    <span class="dot safe"></span>
+                                    <span>Safe Runs: <b id="stat-safe">{{ stats.safe_count }}</b></span>
+                                </div>
+                                <div class="stat-bullet">
+                                    <span class="dot warning"></span>
+                                    <span>Suspicious Events: <b id="stat-suspicious">{{ stats.suspicious_count }}</b></span>
+                                </div>
+                                <div class="stat-bullet">
+                                    <span class="dot critical"></span>
+                                    <span>Malicious Threats: <b id="stat-malicious">{{ stats.malicious_count }}</b></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Summary Features Grid -->
+                        <div class="glass-card quick-category-card">
+                            <h3>Shield Modules Activity</h3>
+                            <div class="modules-grid">
+                                <div class="module-stat-box">
+                                    <div class="box-icon web-color"><i class="fa-solid fa-globe"></i></div>
+                                    <div class="box-data">
+                                        <h4 id="count-website">{{ stats.scan_types.get('website', 0) }}</h4>
+                                        <span>Web Checked</span>
+                                    </div>
+                                </div>
+                                <div class="module-stat-box">
+                                    <div class="box-icon image-color"><i class="fa-solid fa-image"></i></div>
+                                    <div class="box-data">
+                                        <h4 id="count-image">{{ stats.scan_types.get('image', 0) }}</h4>
+                                        <span>Images Tested</span>
+                                    </div>
+                                </div>
+                                <div class="module-stat-box">
+                                    <div class="box-icon mail-color"><i class="fa-solid fa-envelope"></i></div>
+                                    <div class="box-data">
+                                        <h4 id="count-email">{{ stats.scan_types.get('email', 0) }}</h4>
+                                        <span>Emails Audited</span>
+                                    </div>
+                                </div>
+                                <div class="module-stat-box">
+                                    <div class="box-icon pwd-color"><i class="fa-solid fa-key"></i></div>
+                                    <div class="box-data">
+                                        <h4 id="count-password">{{ stats.scan_types.get('password', 0) }}</h4>
+                                        <span>Keys Inspected</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="system-quick-advice">
+                                <h4>💡 Top Threat Vector Recommendation</h4>
+                                <p id="system-dynamic-tip">Use the <b>Security Advisor</b> to answer the cybersecurity audit questionnaire and formulate customized system-hardening configurations.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scan Logs History -->
+                    <div class="glass-card history-logs-card">
+                        <div class="history-card-header">
+                            <h3>Threat Logging Registry</h3>
+                            <button class="btn btn-secondary border-red" id="btn-clear-history">
+                                <i class="fa-solid fa-trash-can"></i> Reset Logs
+                            </button>
+                        </div>
+                        
+                        <div class="table-results-container">
+                            <table class="grid-table" id="table-logs">
+                                <thead>
+                                    <tr>
+                                        <th>Module</th>
+                                        <th>Input Target</th>
+                                        <th>Risk Indicator</th>
+                                        <th>Timestamp</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if stats.recent_scans %}
+                                        {% for scan in stats.recent_scans %}
+                                            <tr data-id="{{ scan.id }}">
+                                                <td>
+                                                    <span class="mod-icon {{ scan.scan_type }}">
+                                                        {% if scan.scan_type == 'website' %}<i class="fa-solid fa-globe"></i>
+                                                        {% elif scan.scan_type == 'image' %}<i class="fa-solid fa-image"></i>
+                                                        {% elif scan.scan_type == 'email' %}<i class="fa-solid fa-envelope"></i>
+                                                        {% elif scan.scan_type == 'password' %}<i class="fa-solid fa-key"></i>
+                                                        {% else %}<i class="fa-solid fa-shield"></i>
+                                                        {% endif %}
+                                                        {{ scan.scan_type.upper() }}
+                                                    </span>
+                                                </td>
+                                                <td><code class="telemetry-input">{{ scan.input_data }}</code></td>
+                                                <td>
+                                                    <span class="status-badge {{ scan.risk_level.lower() }}">
+                                                        {{ scan.risk_level }}
+                                                    </span>
+                                                </td>
+                                                <td><small class="timestamp">{{ scan.timestamp }}</small></td>
+                                                <td>
+                                                    <a href="/api/reports/{{ scan.id }}?type={{ scan.scan_type }}" target="_blank" class="btn-table-action" title="View Full printable report">
+                                                        <i class="fa-solid fa-print"></i> Report
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr class="empty-table-row">
+                                            <td colspan="5">Zero security scan files registered in sqlite database. Run some tool audits to populate.</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. AI Website Safety Checker -->
+                <div class="tab-panel" id="panel-website">
+                    <h2 class="panel-title"><i class="fa-solid fa-globe"></i> AI Website Safety Checker</h2>
+                    <p class="panel-desc">Scans a domain or specific URL to analyze SSL integrity, phishing factors, and domain registration anomalies.</p>
+                    
+                    <div class="glass-card panel-workflow-split">
+                        <div class="form-inputs-group">
+                            <form id="form-website" class="secure-form">
+                                <div class="input-glow-wrapper">
+                                    <label for="input-web-url"><i class="fa-solid fa-link"></i> Website URL</label>
+                                    <input type="text" id="input-web-url" placeholder="e.g., https://example-paypal-login.com" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-block" id="btn-submit-website">
+                                    <span>Run Safety Scan</span>
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <div class="results-visual-container inactive" id="web-results">
+                            <div class="metrics-glance-bar">
+                                <div class="glance-item">
+                                    <span class="label">Threat Classification</span>
+                                    <span class="value badge-display" id="web-risk-level">--</span>
+                                </div>
+                            </div>
+                            
+                            <hr class="dark-hr">
+                            
+                            <div class="scan-explanation-markdown telemetry-font" id="web-markdown">
+                                <!-- Markdown content generated dynamically -->
+                            </div>
+                        </div>
+                        
+                        <!-- Analyzer Loader -->
+                        <div class="analyzer-loading-box hidden" id="web-loader">
+                            <div class="scanner-anim"></div>
+                            <span class="lbl-scanning">Analyzing DNS, Certificate registries, and brand spoofing indices via Gemini AI...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. AI Image Authenticity Detection -->
+                <div class="tab-panel" id="panel-image">
+                    <h2 class="panel-title"><i class="fa-solid fa-image"></i> AI Image Authenticity Detection</h2>
+                    <p class="panel-desc">Upload photos to extract synthetic visual noise inconsistencies, GAN grids, or Stable Diffusion interpolation cues.</p>
+                    
+                    <div class="glass-card panel-workflow-split">
+                        <div class="form-inputs-group">
+                            <form id="form-image" class="secure-form">
+                                <div class="drag-drop-area" id="image-dropzone">
+                                    <input type="file" id="input-image-file" accept="image/*" class="file-hidden-input" required>
+                                    <i class="fa-regular fa-folder-open dropzone-icon"></i>
+                                    <h4>Drag & Drop media here</h4>
+                                    <p>or click to browse local folders (PNG, JPG, JPEG up to 16MB)</p>
+                                </div>
+                                
+                                <div class="uploaded-image-preview-box hidden" id="image-preview-container">
+                                    <img id="image-preview" src="#" alt="Upload preview">
+                                    <button class="btn btn-secondary border-red" type="button" id="btn-cancel-image">
+                                        <i class="fa-solid fa-circle-xmark"></i> Remove Image
+                                    </button>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary btn-block margin-top-2" id="btn-submit-image" disabled>
+                                    <span>Scan Image Patterns</span>
+                                    <i class="fa-solid fa-atom"></i>
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <div class="results-visual-container inactive" id="image-results">
+                            <div class="metrics-glance-bar">
+                                <div class="glance-item">
+                                    <span class="label">Confidence</span>
+                                    <span class="value" id="image-confidence">--</span>
+                                </div>
+                            </div>
+                            
+                            <hr class="dark-hr">
+                            
+                            <div class="scan-explanation-markdown telemetry-font" id="image-markdown">
+                                <!-- Markdown findings content -->
+                            </div>
+                        </div>
+                        
+                        <!-- Image Loader -->
+                        <div class="analyzer-loading-box hidden" id="image-loader">
+                            <div class="scanner-anim"></div>
+                            <span class="lbl-scanning">Uploading media arrays and parsing pixel matrices using Gemini Vision Core...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Email Phishing Analyzer -->
+                <div class="tab-panel" id="panel-email">
+                    <h2 class="panel-title"><i class="fa-solid fa-envelope-open-text"></i> Email Phishing Analyzer</h2>
+                    <p class="panel-desc">Analyze suspicious message layouts, copy patterns, urgency keywords, and spoofed domain footprints.</p>
+                    
+                    <div class="glass-card panel-workflow-split">
+                        <div class="form-inputs-group">
+                            <form id="form-email" class="secure-form">
+                                <div class="input-glow-wrapper">
+                                    <label for="input-email-sender"><i class="fa-solid fa-at"></i> Sender Address</label>
+                                    <input type="email" id="input-email-sender" placeholder="support@secure-update-alert.net" required>
+                                </div>
+                                <div class="input-glow-wrapper">
+                                    <label for="input-email-body"><i class="fa-solid fa-align-left"></i> Email Body / Headers</label>
+                                    <textarea id="input-email-body" rows="8" placeholder="Paste the complete text or raw headers of the email here..." required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-block" id="btn-submit-email">
+                                    <span>Inspect Message Header</span>
+                                    <i class="fa-solid fa-envelope-shield"></i>
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <div class="results-visual-container inactive" id="email-results">
+                            <div class="metrics-glance-bar">
+                                <div class="glance-item">
+                                    <span class="label">Threat Verdict</span>
+                                    <span class="value badge-display" id="email-risk-level">--</span>
+                                </div>
+                            </div>
+                            
+                            <hr class="dark-hr">
+                            
+                            <div class="scan-explanation-markdown telemetry-font" id="email-markdown">
+                                <!-- Markdown email analysis -->
+                            </div>
+                        </div>
+                        
+                        <div class="analyzer-loading-box hidden" id="email-loader">
+                            <div class="scanner-anim"></div>
+                            <span class="lbl-scanning">Analyzing mail urgency, social engineering hooks, and SPF alignments via Gemini LLM...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Password Strength Analyzer -->
+                <div class="tab-panel" id="panel-password">
+                    <h2 class="panel-title"><i class="fa-solid fa-key"></i> Password Strength Analyzer</h2>
+                    <p class="panel-desc">Evaluate password complexity, byte entropy, dictionary vulnerabilities, and breach stats locally and securely without transmitting your password characters directly from your device.</p>
+                    
+                    <div class="glass-card panel-workflow-split">
+                        <div class="form-inputs-group">
+                            <form id="form-password" class="secure-form">
+                                <div class="input-glow-wrapper relative-control">
+                                    <label for="input-password-string"><i class="fa-solid fa-fingerprint"></i> Test Password String</label>
+                                    <input type="password" id="input-password-string" placeholder="Type a passphrase to audit..." required>
+                                    <span class="password-toggle-eye" id="toggle-pwd-visibility">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </span>
+                                </div>
+                                
+                                <div class="strength-bar-meter">
+                                    <div class="meter-bar" id="pwd-strength-bar"></div>
+                                </div>
+                                <div class="entropy-subtext">
+                                    <span class="strength-verbal" id="pwd-verbal-strength">Strength: Empty</span>
+                                    <span class="bits-num" id="pwd-entropy-display">0 bits entropy</span>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary btn-block margin-top-2" id="btn-submit-password">
+                                    <span>Run Leak Audits</span>
+                                    <i class="fa-solid fa-qrcode"></i>
+                                </button>
+                            </form>
+                            
+                            <div class="local-password-characteristics grid-2-columns">
+                                <div class="char-badge" id="badge-char-len"><i class="fa-solid fa-circle-xmark red-text"></i> Length: 8+</div>
+                                <div class="char-badge" id="badge-char-upper"><i class="fa-solid fa-circle-xmark red-text"></i> Uppercase [A-Z]</div>
+                                <div class="char-badge" id="badge-char-lower"><i class="fa-solid fa-circle-xmark red-text"></i> Lowercase [a-z]</div>
+                                <div class="char-badge" id="badge-char-number"><i class="fa-solid fa-circle-xmark red-text"></i> Numbers [0-9]</div>
+                                <div class="char-badge" id="badge-char-special"><i class="fa-solid fa-circle-xmark red-text"></i> Symbols [$,%,!]</div>
+                            </div>
+                        </div>
+                        
+                        <div class="results-visual-container inactive" id="pwd-results">
+                            <div class="metrics-glance-bar">
+                                <div class="glance-item">
+                                    <span class="label">Entropy Score</span>
+                                    <span class="value" id="pwd-glance-entropy">--</span>
+                                </div>
+                                <div class="glance-item">
+                                    <span class="label">Credential Breach Records</span>
+                                    <span class="value" id="pwd-glance-breaches">--</span>
+                                </div>
+                            </div>
+                            
+                            <hr class="dark-hr">
+                            
+                            <div class="scan-explanation-markdown telemetry-font" id="pwd-markdown">
+                                <!-- Markdown logic info -->
+                            </div>
+                        </div>
+                        
+                        <div class="analyzer-loading-box hidden" id="pwd-loader">
+                            <div class="scanner-anim"></div>
+                            <span class="lbl-scanning">Formulating defense measures against brute force GPU lists via Gemini Security Advisor...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. Privacy & Security Advisor -->
+                <div class="tab-panel" id="panel-advisor">
+                    <h2 class="panel-title"><i class="fa-solid fa-shield-halved"></i> Privacy & Security Advisor</h2>
+                    <p class="panel-desc">Answer a checklist of active device controls to generate personalized cybersecurity action plans and vulnerability mitigation procedures.</p>
+                    
+                    <div class="glass-card panel-workflow-split">
+                        <div class="form-inputs-group">
+                            <form id="form-advisor" class="secure-form">
+                                <div class="question-row">
+                                    <span class="question-title">1. Do you use Multi-Factor Authentication (MFA) on your main profiles?</span>
+                                    <div class="radio-options">
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-mfa" value="yes" checked>
+                                            <span>Yes (Authenticator App or token keys)</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-mfa" value="partial">
+                                            <span>Partial (Only SMS verification)</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-mfa" value="no">
+                                            <span>No</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="question-row">
+                                    <span class="question-title">2. Do you reuse the same passwords across different applications?</span>
+                                    <div class="radio-options">
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-reuse" value="no" checked>
+                                            <span>No (Each account is completely unique)</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-reuse" value="yes">
+                                            <span>Yes (Reuse identical or similar variants)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="question-row">
+                                    <span class="question-title">3. How frequently do you install software/operating system security patches?</span>
+                                    <div class="radio-options">
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-updates" value="auto" checked>
+                                            <span>Automatic updates enabled (Immediate)</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-updates" value="sometimes">
+                                            <span>Regularly (Within a week of release notification)</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-updates" value="rarely">
+                                            <span>Rarely / Manually (Months apart)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="question-row">
+                                    <span class="question-title">4. Do you maintain offline or isolated cloud backups of your files?</span>
+                                    <div class="radio-options">
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-backups" value="yes" checked>
+                                            <span>Yes (Isolated copies following 3-2-1 rule)</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-backups" value="no">
+                                            <span>No</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="question-row">
+                                    <span class="question-title">5. Are you familiar with header analysis to recognize phishing traps?</span>
+                                    <div class="radio-options">
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-phish" value="yes" checked>
+                                            <span>Yes (Always inspect domains and SPF records)</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="adv-phish" value="no">
+                                            <span>No</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary btn-block margin-top-2" id="btn-submit-advisor">
+                                    <span>Assess My Exposure</span>
+                                    <i class="fa-solid fa-signature"></i>
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <div class="results-visual-container inactive" id="advisor-results">
+                            <div class="metrics-glance-bar">
+                                <div class="glance-item">
+                                    <span class="label">Posture Exposure Score</span>
+                                    <span class="value" id="adv-overall-score">--</span>
+                                </div>
+                                <div class="glance-item">
+                                    <span class="label">Critical Mitigations Pending</span>
+                                    <span class="value text-red" id="adv-mitigation-count">--</span>
+                                </div>
+                            </div>
+                            
+                            <hr class="dark-hr">
+                            
+                            <div class="scan-explanation-markdown telemetry-font" id="advisor-markdown">
+                                <!-- Dynamic Advice Report Cards -->
+                            </div>
+                        </div>
+                        
+                        <div class="analyzer-loading-box hidden" id="advisor-loader">
+                            <div class="scanner-anim"></div>
+                            <span class="lbl-scanning">Compiling safety reports cards and generating custom threat-hardening checklists via Gemini...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. AI Security Assistant chatbot -->
+                <div class="tab-panel" id="panel-chatbot">
+                    <h2 class="panel-title"><i class="fa-solid fa-circle-nodes"></i> Conversational AI Security Assistant</h2>
+                    <p class="panel-desc">Ask queries regarding digital privacy, credential audits, secure networking patterns, or device patching procedures.</p>
+                    
+                    <div class="glass-card chatbot-layout-card">
+                        <!-- Head info -->
+                        <div class="chatbot-header">
+                            <div class="agent-avatar"><i class="fa-solid fa-robot"></i></div>
+                            <div class="agent-title-info">
+                                <h3>Advisor-Node v1.9</h3>
+                                <span>Security Analyst – Google Gemini Engine configured</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Dialogue list screen -->
+                        <div class="conversations-feed" id="chat-messages-container">
+                            <div class="chat-message model">
+                                <p>Hello! I am your interactive security assistant. Type in questions regarding internet safety, system configuration risks, or network defenses. How can I assist you today?</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Typing Indicator -->
+                        <div class="typing-indicator-box hidden" id="chat-typing-indicator">
+                            <div class="dot-typing"></div>
+                            <span>Analyst Node compiling response...</span>
+                        </div>
+                        
+                        <!-- Input submit dock -->
+                        <form id="form-chat" class="chatbot-input-dock">
+                            <input type="text" id="input-chat-query" placeholder="Ask about phishing, virus profiles, browser plugins safety..." required>
+                            <button type="submit" class="btn btn-primary" id="btn-send-message">
+                                <span>Send</span>
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+            </section>
+            
+            <footer class="app-page-footer">
+                <p>CyberShield AI Engine &copy; 2026. Made with Python Flask & Google Gemini for advanced web threat assessments. Secure Sandbox Environments.</p>
+            </footer>
+        </main>
+    </div>
+    
+    <!-- Auth Modals -->
+    <!-- 1. Login Modal -->
+    <div class="auth-modal-backdrop hidden" id="modal-login">
+        <div class="auth-modal-card">
+            <div class="auth-modal-header">
+                <h3><i class="fa-solid fa-right-to-bracket text-cyan"></i> Sign In to CyberShield AI</h3>
+                <button class="btn-close-modal" id="btn-close-login"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-login" class="auth-form">
+                <div class="form-group">
+                    <label><i class="fa-solid fa-user"></i> Username or Email</label>
+                    <input type="text" id="login-identifier" class="form-control" placeholder="Enter username or email" required>
+                </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-key"></i> Password</label>
+                    <input type="password" id="login-password" class="form-control" placeholder="Enter password" required>
+                </div>
+                <div class="auth-error-msg hidden" id="login-error-msg"></div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-submit-login">
+                    <span>Authenticate</span> <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+            <div class="auth-modal-footer">
+                <span>Don't have an account? <a href="#" id="link-switch-to-register">Register here</a></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Register Modal -->
+    <div class="auth-modal-backdrop hidden" id="modal-register">
+        <div class="auth-modal-card">
+            <div class="auth-modal-header">
+                <h3><i class="fa-solid fa-user-plus text-cyan"></i> Create CyberShield Account</h3>
+                <button class="btn-close-modal" id="btn-close-register"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-register" class="auth-form">
+                <div class="form-group">
+                    <label><i class="fa-solid fa-user"></i> Username</label>
+                    <input type="text" id="reg-username" class="form-control" placeholder="Choose a username" required>
+                </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-envelope"></i> Email Address</label>
+                    <input type="email" id="reg-email" class="form-control" placeholder="name@domain.com" required>
+                </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-lock"></i> Password</label>
+                    <input type="password" id="reg-password" class="form-control" placeholder="At least 6 characters" required>
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>First Name</label>
+                        <input type="text" id="reg-first-name" class="form-control" placeholder="Optional">
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name</label>
+                        <input type="text" id="reg-last-name" class="form-control" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="auth-error-msg hidden" id="reg-error-msg"></div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-submit-register">
+                    <span>Register Account</span> <i class="fa-solid fa-shield-halved"></i>
+                </button>
+            </form>
+            <div class="auth-modal-footer">
+                <span>Already have an account? <a href="#" id="link-switch-to-login">Sign in</a></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Logic files -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
