@@ -369,7 +369,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     const res = data.result;
                     
                     // XAI metrics
-                    setElementSafe('image-confidence', res.confidence ? res.confidence + '%' : '--');
+                    const displayProb = res.ai_probability !== undefined ? res.ai_probability : res.confidence;
+                    setElementSafe('image-confidence', displayProb !== undefined ? displayProb + '%' : '--');
+
                     
                     // XAI markdown report
                     document.getElementById('image-markdown').innerHTML = parseMarkdown(res.explanation_markdown);
