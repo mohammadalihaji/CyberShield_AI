@@ -49,6 +49,10 @@ def build_engine():
     if not db_url:
         db_url = "sqlite:///cybershield.db"
 
+    # Render and other hosts may provide postgres://; SQLAlchemy expects postgresql://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
     # SQLite / standard URL initialization
     if db_url.startswith("sqlite"):
         eng = create_engine(
