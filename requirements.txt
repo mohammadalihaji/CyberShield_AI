@@ -6,6 +6,8 @@ Flask-Bcrypt==1.0.1
 
 SQLAlchemy==2.0.36
 PyMySQL==1.1.1
+# Required when Render supplies a PostgreSQL DATABASE_URL.
+psycopg2-binary==2.9.10
 bcrypt==4.2.0
 python-dotenv==1.0.1
 PyJWT==2.10.1
