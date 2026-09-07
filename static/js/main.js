@@ -226,11 +226,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ==========================================
-    // 2. AI Website Safety Checker — XAI Enhanced
+    // 2. ML Website Security Assessment Handler
     // ==========================================
     const formWeb = document.getElementById('form-website');
     const webLoader = document.getElementById('web-loader');
     const webResults = document.getElementById('web-results');
+    const webModelStatus = document.getElementById('web-model-status');
+    const webModelStatusText = document.getElementById('web-model-status-text');
     
     if (formWeb) {
         formWeb.addEventListener('submit', function(e) {
@@ -241,6 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             webResults.classList.add('inactive');
             webLoader.classList.remove('hidden');
+            if (webModelStatus) webModelStatus.classList.add('hidden');
             
             fetch('/api/check-website', {
                 method: 'POST',
@@ -250,21 +253,52 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(data => {
                 webLoader.classList.add('hidden');
+
+                if (data.status === 'MODEL_NOT_READY') {
+                    const res = data.result || {};
+                    if (webModelStatus) {
+                        webModelStatus.classList.remove('hidden');
+                        if (webModelStatusText) {
+                            webModelStatusText.textContent = data.error || "CompPhish V4 model training required. All feature pipelines ready.";
+                        }
+                    }
+                    const rLevel = document.getElementById('web-risk-level');
+                    if (rLevel) {
+                        rLevel.textContent = 'AWAITING TRAINING';
+                        rLevel.className = 'value badge-display status-badge warning';
+                    }
+                    setElementSafe('web-trusted-prob', '--');
+                    setElementSafe('web-phish-prob', '--');
+                    
+                    if (res.explanation_markdown) {
+                        document.getElementById('web-markdown').innerHTML = parseMarkdown(res.explanation_markdown);
+                    }
+                    webResults.classList.remove('inactive');
+                    return;
+                }
+
                 if (data.success) {
                     const res = data.result;
+                    if (webModelStatus) webModelStatus.classList.add('hidden');
                     
-                    // Threat Classification
+                    // Calibrated ML Probabilities
+                    setElementSafe('web-trusted-prob', `${res.trusted_probability}%`);
+                    setElementSafe('web-phish-prob', `${res.phishing_probability}%`);
+
+                    // Threat Classification Badge
                     const rLevel = document.getElementById('web-risk-level');
-                    rLevel.textContent = res.risk_level;
-                    rLevel.className = `value badge-display status-badge ${res.risk_level.toLowerCase()}`;
+                    if (rLevel) {
+                        rLevel.textContent = res.risk_level;
+                        rLevel.className = `value badge-display status-badge ${res.risk_level.toLowerCase()}`;
+                    }
                     
-                    // XAI markdown report
+                    // XAI Explainable AI Markdown report
                     document.getElementById('web-markdown').innerHTML = parseMarkdown(res.explanation_markdown);
                     
                     webResults.classList.remove('inactive');
                     refreshStats();
                 } else {
-                    alert("Website audit error: " + data.error);
+                    alert("Website audit error: " + (data.error || "Analysis failed"));
                 }
             })
             .catch(err => {

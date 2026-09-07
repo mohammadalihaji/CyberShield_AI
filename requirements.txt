@@ -15,4 +15,8 @@ PyJWT==2.10.1
 google-genai
 Pillow
 numpy
+scikit-learn
+joblib
+beautifulsoup4
+requests
 gunicorn>=21.2.0

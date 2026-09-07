@@ -191,3 +191,8 @@ cybershield.db
 # User uploads for CyberShield AI
 uploads/*
 !uploads/.gitkeep
+
+# Large dataset files and binary model artifacts
+data/compPhish_v4/*
+!data/compPhish_v4/README.md
+*.joblib

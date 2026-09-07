@@ -15,6 +15,7 @@ from auth.password_service import PasswordService
 from auth.jwt_service import JWTService
 from auth.decorators import get_current_user
 from repositories.user_repository import UserRepository
+from ml.inference.website_analyzer import WebsiteSecurityAnalyzer
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'cybershield-secret-key-1337')
@@ -230,7 +231,9 @@ def get_stats():
 @app.route('/api/check-website', methods=['POST'])
 def check_website():
     """
-    Website Security Checker. Performs threat scan and persists result into database.
+    Website Security Checker.
+    Executes ML-based static and multi-model analysis (URL + Page + DOM + Evidence).
+    Persists result into database maintaining backward compatibility.
     """
     try:
         data = request.get_json() or {}
@@ -241,7 +244,21 @@ def check_website():
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
             
-        result = gemini_service.analyze_website(url)
+        analyzer = WebsiteSecurityAnalyzer()
+        result = analyzer.analyze(url)
+
+        # Handle pre-training / unready model state
+        if result.get("status") == "MODEL_NOT_READY":
+            return jsonify({
+                "success": False,
+                "status": "MODEL_NOT_READY",
+                "error": result.get("error"),
+                "result": result
+            }), 200
+
+        if not result.get("success"):
+            return jsonify({"success": False, "error": result.get("error", "Website analysis failed.")}), 400
+
         user_id = g.user.id if g.user else None
 
         # Save to DB
@@ -250,11 +267,22 @@ def check_website():
             input_data=url,
             risk_level=result.get('risk_level', 'Suspicious'),
             result_json={
-                'phishing_score': result.get('phishing_score', 50),
+                'phishing_score': result.get('phishing_score', 0),
+                'trusted_probability': result.get('trusted_probability', 0.0),
+                'phishing_probability': result.get('phishing_probability', 0.0),
                 'ssl_valid': result.get('ssl_valid', False),
                 'malware_found': result.get('malware_found', False),
-                'domain_age': result.get('domain_age', 'Unknown'),
-                'reputation': result.get('reputation', 'Neutral')
+                'domain_age': result.get('domain_age'),
+                'reputation': result.get('reputation'),
+                'page_analysis_available': result.get('page_analysis_available', False),
+                'url_analysis': result.get('url_analysis', {}),
+                'page_analysis': result.get('page_analysis', {}),
+                'form_analysis': result.get('form_analysis', {}),
+                'script_analysis': result.get('script_analysis', {}),
+                'redirect_analysis': result.get('redirect_analysis', {}),
+                'download_analysis': result.get('download_analysis', {}),
+                'security_indicators': result.get('security_indicators', {}),
+                'model_version': result.get('model_version', '')
             },
             raw_detail=result.get('explanation_markdown', ''),
             user_id=user_id

@@ -674,7 +674,6 @@ def analyze_image_forensics(image_path: str) -> Dict[str, Any]:
         )
 
         return results
-
     except Exception as exc:
         logger.error("Image forensics analysis failed: %s", exc)
         return {"error": f"Forensic analysis failed: {exc}"}

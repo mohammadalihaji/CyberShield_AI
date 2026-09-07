@@ -265,10 +265,10 @@
                     </div>
                 </div>
 
-                <!-- 2. AI Website Safety Checker -->
+                <!-- 2. ML Website Security Assessment -->
                 <div class="tab-panel" id="panel-website">
-                    <h2 class="panel-title"><i class="fa-solid fa-globe"></i> AI Website Safety Checker</h2>
-                    <p class="panel-desc">Scans a domain or specific URL to analyze SSL integrity, phishing factors, and domain registration anomalies.</p>
+                    <h2 class="panel-title"><i class="fa-solid fa-shield-halved"></i> ML Website Security Assessment</h2>
+                    <p class="panel-desc">Multi-modal security assessment analyzing URL heuristics, static HTML DOM, credential forms, and redirect telemetry.</p>
                     
                     <div class="glass-card panel-workflow-split">
                         <div class="form-inputs-group">
@@ -278,18 +278,30 @@
                                     <input type="text" id="input-web-url" placeholder="e.g., https://example-paypal-login.com" required>
                                 </div>
                                 <button type="submit" class="btn btn-primary btn-block" id="btn-submit-website">
-                                    <span>Run Safety Scan</span>
+                                    <span>Run Security Scan</span>
                                     <i class="fa-solid fa-shield-halved"></i>
                                 </button>
                             </form>
                         </div>
                         
                         <div class="results-visual-container inactive" id="web-results">
-                            <div class="metrics-glance-bar">
+                            <div class="metrics-glance-bar" id="web-metrics-bar">
                                 <div class="glance-item">
-                                    <span class="label">Threat Classification</span>
+                                    <span class="label">Estimated Trusted</span>
+                                    <span class="value text-green" id="web-trusted-prob">--</span>
+                                </div>
+                                <div class="glance-item">
+                                    <span class="label">Estimated Phishing</span>
+                                    <span class="value text-red" id="web-phish-prob">--</span>
+                                </div>
+                                <div class="glance-item">
+                                    <span class="label">Risk Level</span>
                                     <span class="value badge-display" id="web-risk-level">--</span>
                                 </div>
+                            </div>
+
+                            <div id="web-model-status" class="alert-box hidden" style="margin: 15px 0; padding: 12px; border-radius: 6px; background: rgba(255, 179, 0, 0.1); border: 1px solid rgba(255, 179, 0, 0.3); color: #ffb300;">
+                                <i class="fa-solid fa-circle-info"></i> <strong>Model Status:</strong> <span id="web-model-status-text">Awaiting CompPhish V4 Dataset Training.</span>
                             </div>
                             
                             <hr class="dark-hr">
@@ -302,7 +314,7 @@
                         <!-- Analyzer Loader -->
                         <div class="analyzer-loading-box hidden" id="web-loader">
                             <div class="scanner-anim"></div>
-                            <span class="lbl-scanning">Analyzing DNS, Certificate registries, and brand spoofing indices via Gemini AI...</span>
+                            <span class="lbl-scanning">Analyzing URL, webpage structure, forms, redirects and security indicators...</span>
                         </div>
                     </div>
                 </div>
