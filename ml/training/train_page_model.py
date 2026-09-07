@@ -1,74 +1,75 @@
+import os
 import sys
 import logging
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from sklearn.metrics import classification_report, roc_auc_score
+from sklearn.model_selection import GroupShuffleSplit
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
+import joblib
 
-from ml.config import DATASET_DIR, MODEL_DIR
-from ml.dataset_inspector import DatasetInspector
-from ml.dataset_loader import DatasetLoader
+from ml.config import DATASET_DIR, MODEL_DIR, RANDOM_STATE, N_ESTIMATORS
 from ml.models.page_model import PageSecurityModel
 from ml.models.model_registry import ModelRegistry
-from ml.features.html_features import extract_html_features
-from ml.features.feature_schema import PAGE_FEATURE_NAMES, dict_to_vector, get_schema_metadata
+from ml.features.feature_schema import PAGE_FEATURE_NAMES, get_schema_metadata
+from ml.features.url_features import extract_base_domain
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def run_training():
-    inspector = DatasetInspector(DATASET_DIR)
-    files = inspector.find_dataset_files()
-    
-    if not files:
-        print("============================================================")
-        print("CompPhish V4 dataset not found in data/compPhish_v4/.")
-        print("Training is intentionally skipped.")
-        print("============================================================")
+    dataset_file = DATASET_DIR / "All_Features_threshold90.xlsx"
+    if not dataset_file.exists():
+        print("CompPhish V4 dataset file All_Features_threshold90.xlsx not found.")
         return
 
-    print("CompPhish V4 dataset detected. Starting Page model training pipeline...")
-    loader = DatasetLoader(DATASET_DIR)
-    df = loader.load_raw_dataset()
-    if df is None:
-        return
+    print("Loading CompPhish V4 dataset for Page Model Training...")
+    df = pd.read_excel(dataset_file)
 
-    inspection = inspector.inspect()
-    url_col = inspection.get("detected_url")
-    html_col = inspection.get("detected_html")
-    label_col = inspection.get("detected_label")
+    # Domain-aware grouping
+    df["_extracted_domain"] = df["url"].apply(lambda u: extract_base_domain(str(u).split("/")[2] if "//" in str(u) else str(u)))
 
-    if not label_col:
-        print("Label column not detected.")
-        return
+    gss_test = GroupShuffleSplit(n_splits=1, test_size=0.15, random_state=RANDOM_STATE)
+    train_val_idx, test_idx = next(gss_test.split(df, groups=df["_extracted_domain"]))
 
-    if not html_col:
-        print("HTML column not detected in dataset. Page model training requires HTML content.")
-        return
+    df_train_val = df.iloc[train_val_idx].copy()
+    df_test = df.iloc[test_idx].copy()
 
-    print(f"Splitting dataset domain-aware on URL column: {url_col}...")
-    df_train, df_val, df_test = loader.split_domain_aware(df, url_col=url_col or html_col)
+    gss_val = GroupShuffleSplit(n_splits=1, test_size=0.1765, random_state=RANDOM_STATE)
+    train_idx, val_idx = next(gss_val.split(df_train_val, groups=df_train_val["_extracted_domain"]))
 
-    print("Extracting HTML/Page features for training set...")
-    X_train = np.array([dict_to_vector(extract_html_features(str(h), str(u)), PAGE_FEATURE_NAMES) for h, u in zip(df_train[html_col], df_train.get(url_col, [""] * len(df_train)))])
-    y_train = df_train[label_col].values.astype(int)
+    df_train = df_train_val.iloc[train_idx].copy()
+    df_val = df_train_val.iloc[val_idx].copy()
 
-    print("Extracting HTML/Page features for test set...")
-    X_test = np.array([dict_to_vector(extract_html_features(str(h), str(u)), PAGE_FEATURE_NAMES) for h, u in zip(df_test[html_col], df_test.get(url_col, [""] * len(df_test)))])
-    y_test = df_test[label_col].values.astype(int)
+    # Features and labels
+    X_train = df_train[PAGE_FEATURE_NAMES].values.astype(np.float32)
+    y_train = df_train["label"].values.astype(int)
 
-    print("Fitting Page Security Model (RandomForest)...")
-    model = PageSecurityModel()
-    model.fit(X_train, y_train)
+    X_test = df_test[PAGE_FEATURE_NAMES].values.astype(np.float32)
+    y_test = df_test["label"].values.astype(int)
 
-    preds = model.model.predict(X_test)
-    probas = model.predict_proba(X_test)[:, 1] if model.predict_proba(X_test).shape[1] >= 2 else model.predict_proba(X_test)[:, 0]
-    
+    print(f"Training Page Model on {len(X_train)} samples across {len(PAGE_FEATURE_NAMES)} Page features...")
+    page_model = PageSecurityModel(n_estimators=N_ESTIMATORS, random_state=RANDOM_STATE)
+    page_model.fit(X_train, y_train)
+
+    probas = page_model.model.predict_proba(X_test)[:, 1]
+    preds = (probas >= 0.5).astype(int)
+
     auc = roc_auc_score(y_test, probas)
-    print(f"\nTest ROC-AUC: {auc:.4f}")
-    print("\nClassification Report:")
-    print(classification_report(y_test, preds))
+    acc = accuracy_score(y_test, preds)
+    prec = precision_score(y_test, preds)
+    rec = recall_score(y_test, preds)
+    f1 = f1_score(y_test, preds)
+
+    print(f"\n================ PAGE MODEL METRICS ================")
+    print(f"Test ROC-AUC  : {auc:.4f}")
+    print(f"Test Accuracy : {acc:.4f}")
+    print(f"Test Precision: {prec:.4f}")
+    print(f"Test Recall   : {rec:.4f}")
+    print(f"Test F1-Score : {f1:.4f}")
+    print("====================================================\n")
 
     registry = ModelRegistry(MODEL_DIR)
     models = registry.load_models()
@@ -77,14 +78,25 @@ def run_training():
 
     registry.save_models(
         url_model=url_model,
-        page_model=model,
-        ensemble_model=None,
-        calibrator=None,
+        page_model=page_model,
+        ensemble_model=models.get("ensemble_model"),
+        calibrator=models.get("calibrator"),
         schema_metadata=schema_meta,
-        training_metrics={"page_model_roc_auc": float(auc)},
-        dataset_info={"train_samples": len(X_train), "test_samples": len(X_test)}
+        training_metrics={
+            "page_roc_auc": float(auc),
+            "page_accuracy": float(acc),
+            "page_precision": float(prec),
+            "page_recall": float(rec),
+            "page_f1": float(f1)
+        },
+        dataset_info={
+            "total_samples": len(df),
+            "train_samples": len(X_train),
+            "test_samples": len(X_test),
+            "page_features": len(PAGE_FEATURE_NAMES)
+        }
     )
-    print("Page model trained and saved successfully.")
+    print("Page model artifacts saved successfully.")
 
 
 if __name__ == "__main__":

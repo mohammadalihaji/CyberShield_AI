@@ -5,15 +5,19 @@ from ml.models.calibration import ProbabilityCalibrator
 
 class TestWebsiteSecurityAnalyzer(unittest.TestCase):
 
-    def test_analyzer_pre_training_status(self):
+    def test_analyzer_trained_inference(self):
         analyzer = WebsiteSecurityAnalyzer()
         result = analyzer.analyze("https://example.com")
-        # Prior to CompPhish V4 training, the analyzer should return MODEL_NOT_READY
-        self.assertIn("status", result)
-        self.assertEqual(result["status"], "MODEL_NOT_READY")
-        self.assertFalse(result["success"])
-        self.assertIn("CompPhish V4", result["error"])
-        self.assertTrue("explanation_markdown" in result)
+        self.assertTrue(result.get("success"), f"Analysis failed: {result.get('error')}")
+        self.assertIn("risk_level", result)
+        self.assertIn("trusted_probability", result)
+        self.assertIn("phishing_probability", result)
+        self.assertIn("explanation_markdown", result)
+        self.assertIn("evidence", result)
+        self.assertEqual(
+            result["trusted_probability"] + result["phishing_probability"],
+            100.0
+        )
 
     def test_probability_calibrator_mapping(self):
         self.assertEqual(ProbabilityCalibrator.map_risk_level(0.05), "LOW")
