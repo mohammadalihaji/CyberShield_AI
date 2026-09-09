@@ -192,7 +192,6 @@ cybershield.db
 uploads/*
 !uploads/.gitkeep
 
-# Large dataset files and binary model artifacts
+# Large dataset files (model artifacts are tracked via Git LFS)
 data/compPhish_v4/*
 !data/compPhish_v4/README.md
-*.joblib
