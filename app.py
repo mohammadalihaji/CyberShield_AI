@@ -669,4 +669,11 @@ def clear_history():
 if __name__ == '__main__':
     database.init_db()
     logger.info("Starting CyberShield AI Server on Port 5000...")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+    # use_reloader=False prevents the Werkzeug watchdog from restarting the
+    # server when SentenceTransformer / PyTorch lazy-compiles .pyc files in
+    # site-packages.  Without this, every first email scan triggers a reload
+    # that kills the server mid-request, causing alternating "Failed to fetch"
+    # errors.  Debug error pages still work; you just restart manually after
+    # code changes.
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
