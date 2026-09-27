@@ -110,11 +110,19 @@ class EmailURLAggregator:
         raw_occurrences = record.url_occurrences or raw_urls
         total_url_occurrences = len(raw_occurrences)
         unique_raw_url_count = len(set(raw_occurrences))
-        unique_clickable_href_count = len({
-            normalize_url(url) for url in (record.clickable_href_occurrences or []) if normalize_url(url)
-        })
+        
+        # Clickable hrefs from parser
+        clickable_sources = record.clickable_href_occurrences or record.clickable_hrefs or []
+        if not clickable_sources and not record.html and record.urls:
+            # In plaintext email, all URLs are clickable
+            clickable_sources = record.urls
 
-        if total_url_occurrences == 0:
+        unique_clickable_href_set = {
+            normalize_url(url) for url in clickable_sources if normalize_url(url)
+        }
+        unique_clickable_href_count = len(unique_clickable_href_set)
+
+        if total_url_occurrences == 0 and unique_clickable_href_count == 0:
             return {
                 "email_url_count": 0,
                 "email_unique_domain_count": 0,
@@ -145,6 +153,7 @@ class EmailURLAggregator:
                     "suspicious_urls": 0,
                     "malicious_urls": 0,
                     "max_raw_url_model_score": 0.0,
+                    "max_contextual_url_risk": 0.0,
                     "contextual_threat_verdict": "Clean — No Malicious Links Detected"
                 },
                 "classified_urls": []
@@ -188,15 +197,16 @@ class EmailURLAggregator:
         has_suspicious_tld = 0
         has_brand_impersonation = 0
 
-        # raw_model_risks feeds the ensemble — NEVER altered by context logic
         raw_model_risks: List[float] = []
+        contextual_risks: List[float] = []
+        clickable_contextual_risks: List[float] = []
         classified_urls: List[Dict[str, Any]] = []
 
         for u in normalized_urls:
-            # Score the original clickable wrapper and, when present, its decoded
-            # destination independently.  This preserves CompPhish telemetry
-            # without mistaking a long opaque wrapper for a malicious target.
-            classification_info = classify_single_url(u, sender_domain=sender_domain)
+            is_clickable = (u in unique_clickable_href_set) or (not record.html)
+            is_resource = (u in record.resource_urls) if hasattr(record, "resource_urls") else False
+
+            classification_info = classify_single_url(u, sender_domain=sender_domain, is_image_src=is_resource)
             dest_url = classification_info.get("destination_url", u)
             dest_domain = classification_info.get("destination_domain", "")
             org_dom = classification_info.get("org_domain", "")
@@ -221,7 +231,7 @@ class EmailURLAggregator:
                 social_count += 1
             elif cat == URLCategory.SENDER_DOMAIN:
                 sender_domain_count += 1
-            elif cat == URLCategory.IMAGE_CDN:
+            elif cat in (URLCategory.IMAGE_CDN, URLCategory.IMAGE_TRACKING_PIXEL):
                 image_cdn_count += 1
 
             wrapper_brand = detect_brand_impersonation(u, sender_domain=sender_domain)
@@ -244,8 +254,6 @@ class EmailURLAggregator:
                 ))
                 has_brand_impersonation |= int(bool(brand_check.get("is_impersonation", False)))
 
-            # Keep the highest individual CompPhish probability per clickable
-            # URL for the existing ensemble feature and transparent reporting.
             raw_model_risks.append(round(combined_raw_risk, 4))
 
             if cat in {URLCategory.TRACKING, URLCategory.REDIRECT}:
@@ -263,7 +271,11 @@ class EmailURLAggregator:
                     sender_org=sender_org,
                 )
 
-            # 6. User-facing link counts driven by contextual_risk
+            contextual_risks.append(round(contextual_risk, 4))
+            if cat not in (URLCategory.IMAGE_CDN, URLCategory.IMAGE_TRACKING_PIXEL):
+                clickable_contextual_risks.append(round(contextual_risk, 4))
+
+            # User-facing link counts driven by contextual_risk
             if contextual_risk >= 0.70:
                 malicious_url_count += 1
             elif contextual_risk >= 0.40:
@@ -281,26 +293,20 @@ class EmailURLAggregator:
             classification_info["destination_features"] = destination_features
             classification_info["original_urls"] = original_urls_by_normalized.get(u, [u])
             classification_info["occurrence_count"] = len(classification_info["original_urls"])
+            classification_info["is_clickable"] = is_clickable
             classification_info["is_social"] = cat == URLCategory.SOCIAL
             classification_info["is_unsubscribe"] = cat == URLCategory.UNSUBSCRIBE
-            classification_info["is_cdn_asset"] = cat == URLCategory.IMAGE_CDN
+            classification_info["is_cdn_asset"] = cat in (URLCategory.IMAGE_CDN, URLCategory.IMAGE_TRACKING_PIXEL)
             classification_info["final_classification"] = (
                 "MALICIOUS" if contextual_risk >= 0.70 else
                 ("SUSPICIOUS" if contextual_risk >= 0.40 else "SAFE")
             )
             classified_urls.append(classification_info)
 
-            logger.debug(
-                f"URL: {u} | category: {cat} | wrapper_risk: {wrapper_risk:.4f} | "
-                f"destination_risk: {destination_risk:.4f} | "
-                f"contextual_risk: {contextual_risk:.4f} | reason: {contextual_reason} | "
-                f"brand_impersonation: {destination_brand.get('is_impersonation')} | "
-                f"destination_domain: {dest_domain}"
-            )
-
-        # Ensemble meta-vector uses raw model scores exclusively
         max_raw_risk = max(raw_model_risks) if raw_model_risks else 0.0
         avg_raw_risk = sum(raw_model_risks) / max(len(raw_model_risks), 1) if raw_model_risks else 0.0
+        max_contextual_risk = max(clickable_contextual_risks) if clickable_contextual_risks else (max(contextual_risks) if contextual_risks else 0.0)
+        avg_contextual_risk = sum(contextual_risks) / max(len(contextual_risks), 1) if contextual_risks else 0.0
         ext_ratio = external_domains_count / max(unique_url_count, 1)
 
         # Contextual threat verdict for UI
@@ -311,6 +317,11 @@ class EmailURLAggregator:
         else:
             contextual_verdict = "✓ Clean — No Malicious Links Detected"
 
+        # Make sure unique_clickable_href_count is consistent with classified links
+        if unique_clickable_href_count == 0 and unique_url_count > 0:
+            non_asset_count = sum(1 for c in classified_urls if not c.get("is_cdn_asset"))
+            unique_clickable_href_count = non_asset_count if non_asset_count > 0 else unique_url_count
+
         url_metrics = {
             "total_url_occurrences": total_url_occurrences,
             "unique_raw_urls": unique_raw_url_count,
@@ -319,7 +330,7 @@ class EmailURLAggregator:
             "unique_urls": unique_url_count,
             "unique_destinations": len(unique_destinations) if unique_destinations else unique_url_count,
             "unique_domains": len(unique_domains),
-            "tracking_urls": tracking_count,
+            "tracking_urls": tracking_count + redirect_count,
             "redirect_urls": redirect_count,
             "unsubscribe_urls": unsubscribe_count,
             "social_urls": social_count,
@@ -328,23 +339,25 @@ class EmailURLAggregator:
             "suspicious_urls": suspicious_url_count,
             "malicious_urls": malicious_url_count,
             "max_raw_url_model_score": round(max_raw_risk, 4),
+            "max_contextual_url_risk": round(max_contextual_risk, 4),
             "contextual_threat_verdict": contextual_verdict
         }
 
         return {
-            # Ensemble meta-vector features (raw scores, unchanged)
-            "email_url_count": min(unique_url_count, 50),
+            # Features for structured vector and ensemble
+            "email_url_count": min(unique_clickable_href_count, 50),
             "email_unique_domain_count": min(len(unique_domains), 20),
             "email_suspicious_url_count": min(suspicious_url_count, 20),
-            "email_max_url_risk": round(max_raw_risk, 4),
-            "email_avg_url_risk": round(avg_raw_risk, 4),
+            "email_max_url_risk": round(max_contextual_risk, 4),
+            "email_avg_url_risk": round(avg_contextual_risk, 4),
+            "email_raw_max_url_risk": round(max_raw_risk, 4),
             "email_has_ip_url": has_ip,
             "email_has_shortened_url": has_shortened,
             "email_has_punycode_url": has_punycode,
             "email_has_suspicious_tld_url": has_suspicious_tld,
             "email_has_brand_in_subdomain_url": has_brand_impersonation,
             "email_external_domain_url_ratio": round(ext_ratio, 4),
-            # Debug and UI
+            # Debug and UI telemetry
             "url_risk_scores": raw_model_risks,
             "url_metrics": url_metrics,
             "classified_urls": classified_urls

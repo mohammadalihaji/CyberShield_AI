@@ -45,8 +45,12 @@ class EmailRecord:
     # Source occurrences before parser deduplication. `urls` is the unique,
     # bounded analysis set; occurrences are retained for audit evidence.
     url_occurrences: List[str] = field(default_factory=list)
-    # Anchor hrefs only (excluding image/src and plaintext URL occurrences).
+    # Unique actual clickable hyperlinks (hrefs and text links, excluding images/fonts/styles)
+    clickable_hrefs: List[str] = field(default_factory=list)
+    # Clickable hyperlink occurrences (excluding image/src, css, font, and resource URLs)
     clickable_href_occurrences: List[str] = field(default_factory=list)
+    # Resource / asset URLs (image src, stylesheet links, tracking pixels, etc.)
+    resource_urls: List[str] = field(default_factory=list)
     attachments: List[AttachmentMetadata] = field(default_factory=list)
     raw_email_hash: str = ""
 

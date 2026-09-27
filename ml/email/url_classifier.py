@@ -483,6 +483,39 @@ def classify_single_url(url: str, sender_domain: str = '', is_image_src: bool = 
     }
 
 
+# Known form and survey platforms commonly used for legitimate registration/applications
+FORM_SURVEY_DOMAINS: Set[str] = {
+    'forms.gle', 'docs.google.com', 'forms.office.com', 'typeform.com',
+    'surveymonkey.com', 'surveyhero.com', 'airtable.com', 'notion.site'
+}
+
+# Dynamic DNS / wildcard IP-mapping domains
+DYNAMIC_IP_DOMAINS: Set[str] = {
+    'sslip.io', 'nip.io', 'xip.io', 'traefik.me', 'localh.st'
+}
+
+
+def is_dynamic_ip_domain(hostname: str) -> bool:
+    """Detects wildcard DNS IP-mapping domains (e.g., 192.168.1.1.sslip.io)."""
+    if not hostname:
+        return False
+    h = hostname.lower()
+    return any(h == d or h.endswith('.' + d) for d in DYNAMIC_IP_DOMAINS)
+
+
+def is_form_or_survey_service(url: str, hostname: str) -> bool:
+    """Detects standard cloud forms and survey platforms."""
+    if not url:
+        return False
+    h = hostname.lower()
+    org = get_organizational_domain(h)
+    if org in FORM_SURVEY_DOMAINS or h in FORM_SURVEY_DOMAINS:
+        return True
+    if 'google.com' in h and '/forms/' in url.lower():
+        return True
+    return False
+
+
 def compute_contextual_url_risk(
     classification: Dict[str, Any],
     brand_check: Dict[str, Any],
@@ -497,36 +530,50 @@ def compute_contextual_url_risk(
     contextual_risk is the user-facing per-URL verdict ONLY.
 
     Rules:
-    - Confirmed threats (impersonation, IP URL, punycode, high-risk TLD) -> amplify
+    - Confirmed threats (impersonation, phishing path on external domain, high-risk TLD) -> amplify
     - Benign email-context categories (sender domain, social, CDN, tracking, unsubscribe) -> cap at 0.05
+    - Standard forms/surveys without phishing keywords -> cap at 0.15 (SAFE)
+    - Dynamic IP hostnames (sslip.io / raw IP) without confirmed credential lure -> 0.50 - 0.55 (SUSPICIOUS)
     - DIRECT links with no red flags -> pass through raw model score
 
     Returns: (contextual_risk: float, reason: str)
     """
     cat = classification.get('category', URLCategory.DIRECT)
     org_domain = classification.get('org_domain', '')
+    url_str = classification.get('url', '')
+    parsed_url = urlparse(url_str) if url_str else None
+    hostname = (parsed_url.hostname or '').lower() if parsed_url else ''
+    path_lower = (parsed_url.path.lower() if parsed_url else '')
+
     has_ip = url_features.get('url_contains_ip', 0)
+    has_dynamic_ip = is_dynamic_ip_domain(hostname)
     has_punycode = url_features.get('has_punycode', 0)
     has_suspicious_tld = url_features.get('fake_tld', 0) or url_features.get('suspicious_tld_indicator', 0)
     is_impersonation = brand_check.get('is_impersonation', False)
     brand_severity = brand_check.get('severity', 'SAFE')
+
+    has_phishing_keywords = any(kw in path_lower for kw in [
+        'login', 'signin', 'sign-in', 'verify', 'account', 'auth', 'update',
+        'confirm', 'secure', 'password', 'credential', 'suspend', 'wallet',
+        'recover', 'unlock', 'validate', 'restore', 'reset'
+    ])
 
     # ── AMPLIFY: confirmed threats ────────────────────────────────────────────
     if is_impersonation and brand_severity in ('CRITICAL', 'HIGH'):
         score = max(raw_model_risk, 0.90)
         return round(score, 4), f'Brand impersonation detected: {brand_check.get("reason", "")}'
 
-    if has_ip:
-        score = max(raw_model_risk, 0.80)
-        return round(score, 4), 'URL uses raw IP address instead of domain (strong phishing signal)'
+    if (has_ip or has_dynamic_ip) and has_phishing_keywords:
+        score = max(raw_model_risk, 0.85)
+        return round(score, 4), 'IP-mapped hostname hosting credential/login paths (phishing threat)'
 
     if has_punycode:
         score = max(raw_model_risk, 0.75)
         return round(score, 4), 'Punycode/IDN homoglyph domain (potential visual spoofing)'
 
-    if has_suspicious_tld:
-        score = max(raw_model_risk, 0.65)
-        return round(score, 4), 'High-risk or abused TLD detected'
+    if has_suspicious_tld and (has_phishing_keywords or raw_model_risk >= 0.70):
+        score = max(raw_model_risk, 0.75)
+        return round(score, 4), 'High-risk or abused TLD detected with threat indicators'
 
     # ── REDUCE: unambiguously benign email-context categories ─────────────────
     SAFE_CATEGORIES = {
@@ -551,38 +598,24 @@ def compute_contextual_url_risk(
         }
         return 0.05, reason_map.get(cat, 'Benign email infrastructure link')
 
+    # ── FORM & SURVEY PLATFORMS: safe forms evaluation ────────────────────────
+    if is_form_or_survey_service(url_str, hostname):
+        if not has_phishing_keywords and not is_impersonation:
+            return 0.15, f'Standard registration/form platform ({org_domain or hostname})'
+
+    # ── DYNAMIC IP / RAW IP WITHOUT CREDENTIAL THEFT: SUSPICIOUS ONLY ─────────
+    if has_ip or has_dynamic_ip:
+        # Dynamic DNS / IP mapping without confirmed phishing payload -> SUSPICIOUS (not Malicious)
+        return 0.50, f'Dynamic IP/DNS hostname ({org_domain or hostname}) — marked SUSPICIOUS pending full verification'
+
     # ── DIRECT: apply contextual interpretation of raw lexical score ─────────
-    # CompPhish V4 is a lexical random forest. It assigns high scores to URLs
-    # with high entropy, long paths, UUIDs, JWT tokens, and many special chars
-    # — even on completely legitimate SaaS tool links (e.g. app.veed.io/edit/UUID).
-    #
-    # Without CONFIRMED semantic threat signals, a purely lexical high score
-    # should NOT produce a MALICIOUS contextual verdict.
-    #
-    # Confirmed threat signals: brand impersonation, IP address, punycode,
-    # suspicious/abused TLD, phishing path keywords.
-    # These are already handled in the AMPLIFY section above.
-    #
-    # If we reach here with raw_model_risk >= 0.70, NO threat signals fired,
-    # so we cap at SUSPICIOUS (0.55) to prevent false positives.
-
-    url_str = classification.get('url', '')
-    parsed_url = urlparse(url_str) if url_str else None
-    path_lower = (parsed_url.path.lower() if parsed_url else '')
-
-    has_phishing_keywords = any(kw in path_lower for kw in [
-        'login', 'signin', 'sign-in', 'verify', 'account', 'auth', 'update',
-        'confirm', 'secure', 'password', 'credential', 'suspend', 'wallet',
-        'recover', 'unlock', 'validate', 'restore', 'reset'
-    ])
-
     if has_phishing_keywords:
         # Phishing keywords in path on a 3rd party domain — trust the raw model
         return round(raw_model_risk, 4), f'Phishing keyword in URL path on external domain ({org_domain})'
 
     if raw_model_risk >= 0.70:
         # High lexical score but NO semantic threat signals — cap at SUSPICIOUS
-        return 0.55, (
+        return 0.45, (
             f'CompPhish lexical score {raw_model_risk*100:.0f}% — capped at SUSPICIOUS '
             f'(no confirmed threat signals on {org_domain})'
         )

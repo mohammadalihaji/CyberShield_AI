@@ -39,40 +39,60 @@ def extract_domain_from_email_addr(email_str: str) -> str:
     return ""
 
 
-def clean_html_to_plain_text(html_content: str) -> Tuple[str, List[str]]:
+def clean_html_to_plain_text(html_content: str) -> Tuple[str, List[str], List[str]]:
     """
-    Safely converts HTML content to clean plaintext and extracts all href URLs.
+    Safely converts HTML content to clean plaintext, extracts clickable anchor hrefs,
+    and separately extracts non-clickable resource URLs (images, fonts, stylesheets).
     Never executes or evaluates scripts/DOM.
     """
     if not html_content:
-        return "", []
+        return "", [], []
 
-    extracted_urls = []
+    clickable_hrefs: List[str] = []
+    resource_urls: List[str] = []
     try:
         soup = BeautifulSoup(html_content, "html.parser")
         
-        # Collect hrefs
+        # 1. Collect clickable anchor hrefs only (filtering out non-HTTP schemes)
         for a in soup.find_all("a", href=True):
             href = a.get("href", "").strip()
-            if href and (href.startswith("http://") or href.startswith("https://") or href.startswith("www.")):
-                extracted_urls.append(href)
+            # Ignore empty, anchor fragments, javascript:, mailto:, tel:, data:, cid:
+            if not href or href.startswith(("#", "javascript:", "mailto:", "tel:", "data:", "cid:", "sms:")):
+                continue
+            if href.startswith("www."):
+                href = "http://" + href
+            if href.startswith(("http://", "https://")):
+                clickable_hrefs.append(href)
 
-        # Collect image sources
+        # 2. Collect image sources and asset links separately
         for img in soup.find_all("img", src=True):
             src = img.get("src", "").strip()
-            if src and (src.startswith("http://") or src.startswith("https://")):
-                extracted_urls.append(src)
+            if src and not src.startswith(("data:", "cid:")):
+                if src.startswith("www."):
+                    src = "http://" + src
+                if src.startswith(("http://", "https://")):
+                    resource_urls.append(src)
 
-        # Strip scripts and styles
-        for tag in soup(["script", "style", "head", "meta", "noscript"]):
+        for el in soup.find_all(["source", "video", "audio"], src=True):
+            src = el.get("src", "").strip()
+            if src and src.startswith(("http://", "https://")):
+                resource_urls.append(src)
+
+        for link in soup.find_all("link", href=True):
+            href = link.get("href", "").strip()
+            if href and href.startswith(("http://", "https://")):
+                resource_urls.append(href)
+
+        # 3. Strip scripts, styles, head metadata
+        for tag in soup(["script", "style", "head", "meta", "noscript", "svg"]):
             tag.decompose()
 
         plain_text = soup.get_text(separator=" ", strip=True)
-        return plain_text[:MAX_BODY_TEXT_LENGTH], extracted_urls
+        return plain_text[:MAX_BODY_TEXT_LENGTH], clickable_hrefs, resource_urls
     except Exception:
         # Fallback regex strip
         text = re.sub(r'<[^>]+>', ' ', html_content)
-        return text[:MAX_BODY_TEXT_LENGTH], extracted_urls
+        return text[:MAX_BODY_TEXT_LENGTH], clickable_hrefs, resource_urls
 
 
 def parse_raw_eml(eml_bytes_or_str: Union[bytes, str], source_dataset: str = "live_stream") -> EmailRecord:
@@ -127,7 +147,6 @@ def parse_raw_eml(eml_bytes_or_str: Union[bytes, str], source_dataset: str = "li
     plain_text_parts = []
     html_parts = []
     attachments: List[AttachmentMetadata] = []
-    urls: List[str] = []
 
     if msg.is_multipart():
         for part in msg.walk():
@@ -196,45 +215,52 @@ def parse_raw_eml(eml_bytes_or_str: Union[bytes, str], source_dataset: str = "li
     full_plain = "\n".join(plain_text_parts)[:MAX_BODY_TEXT_LENGTH]
     full_html = "\n".join(html_parts)[:MAX_BODY_TEXT_LENGTH]
 
-    # Extract URLs from HTML
-    html_plain, html_urls = clean_html_to_plain_text(full_html)
-    urls.extend(html_urls)
-    clickable_href_occurrences = []
+    clickable_href_occurrences: List[str] = []
+    resource_url_occurrences: List[str] = []
+
     if full_html:
-        try:
-            soup = BeautifulSoup(full_html, "html.parser")
-            clickable_href_occurrences = [
-                a.get("href", "").strip()
-                for a in soup.find_all("a", href=True)
-                if a.get("href", "").strip().startswith(("http://", "https://", "www."))
-            ]
-        except Exception:
-            pass
+        html_plain, html_hrefs, html_resources = clean_html_to_plain_text(full_html)
+        clickable_href_occurrences.extend(html_hrefs)
+        resource_url_occurrences.extend(html_resources)
+        if not full_plain:
+            full_plain = html_plain
+        # If plain text parts exist, look for any standalone links not present in HTML hrefs
+        if plain_text_parts:
+            for pt in plain_text_parts:
+                for match in URL_REGEX.findall(pt):
+                    clean_match = match.strip().rstrip(".,;)>\"'")
+                    if clean_match.startswith("www."):
+                        clean_match = "http://" + clean_match
+                    if clean_match and clean_match not in clickable_href_occurrences and clean_match not in resource_url_occurrences:
+                        clickable_href_occurrences.append(clean_match)
+    else:
+        # Plain text only email — all URLs in plain text are clickable links
+        if full_plain:
+            for match in URL_REGEX.findall(full_plain):
+                clean_match = match.strip().rstrip(".,;)>\"'")
+                if clean_match.startswith("www."):
+                    clean_match = "http://" + clean_match
+                if clean_match:
+                    clickable_href_occurrences.append(clean_match)
 
-    # If plain text was empty but HTML existed, use the stripped text
-    if not full_plain and html_plain:
-        full_plain = html_plain
+    # Clean and build unique lists
+    all_raw_occurrences = [u.strip().rstrip(".,;)>\"'") for u in (clickable_href_occurrences + resource_url_occurrences) if u.strip()]
+    
+    unique_clickable_set = set()
+    cleaned_clickable_hrefs: List[str] = []
+    for u in clickable_href_occurrences:
+        cu = u.strip().rstrip(".,;)>\"'")
+        if cu and cu not in unique_clickable_set:
+            unique_clickable_set.add(cu)
+            cleaned_clickable_hrefs.append(cu)
 
-    # Extract URLs from plaintext
-    plain_urls = URL_REGEX.findall(full_plain)
-    for u in plain_urls:
-        if u.startswith("www."):
-            u = "http://" + u
-        urls.append(u)
-
-    # Preserve source occurrences for reporting, then make the bounded unique
-    # set used by the feature/model pipeline.
-    url_occurrences = []
-    seen_urls = set()
-    cleaned_urls = []
-    for u in urls:
-        clean_u = u.strip().rstrip(".,;)>\"'")
-        if clean_u:
-            url_occurrences.append(clean_u)
-        if clean_u and clean_u not in seen_urls:
-            seen_urls.add(clean_u)
-            cleaned_urls.append(clean_u)
-        if len(cleaned_urls) >= MAX_URLS_TO_ANALYZE:
+    seen_all = set()
+    cleaned_all_urls: List[str] = []
+    for u in all_raw_occurrences:
+        if u and u not in seen_all:
+            seen_all.add(u)
+            cleaned_all_urls.append(u)
+        if len(cleaned_all_urls) >= MAX_URLS_TO_ANALYZE:
             break
 
     return EmailRecord(
@@ -257,16 +283,18 @@ def parse_raw_eml(eml_bytes_or_str: Union[bytes, str], source_dataset: str = "li
         dmarc_verdict=dmarc_verdict,
         message_id=message_id,
         date=date_str,
-        urls=cleaned_urls,
-        url_occurrences=url_occurrences,
-        clickable_href_occurrences=clickable_href_occurrences,
+        urls=cleaned_all_urls,
+        url_occurrences=all_raw_occurrences,
+        clickable_hrefs=cleaned_clickable_hrefs,
+        clickable_href_occurrences=[u.strip().rstrip(".,;)>\"'") for u in clickable_href_occurrences if u.strip()],
+        resource_urls=[u.strip().rstrip(".,;)>\"'") for u in resource_url_occurrences if u.strip()],
         attachments=attachments
     )
 
 
 def parse_pasted_email(sender: str, body_or_headers: str, subject: str = "") -> EmailRecord:
     """
-    Parses pasted email text (which may contain raw RFC headers or just sender + body text).
+    Parses pasted email text (which may contain raw RFC headers, HTML, or just sender + body text).
     """
     body_stripped = body_or_headers.strip()
     
@@ -281,22 +309,30 @@ def parse_pasted_email(sender: str, body_or_headers: str, subject: str = "") -> 
             parsed.subject = subject
         return parsed
 
-    # Simple text input with separate sender and body
+    # Check if pasted body contains HTML markup
+    is_html = ("<html" in body_stripped.lower() or "<div" in body_stripped.lower() or "<p" in body_stripped.lower() or "<a " in body_stripped.lower())
+    if is_html:
+        fake_eml = f"From: {sender}\nSubject: {subject}\nContent-Type: text/html; charset=utf-8\n\n{body_stripped}"
+        return parse_raw_eml(fake_eml, source_dataset="pasted_html")
+
+    # Simple plain text input with separate sender and body
     from_domain = extract_domain_from_email_addr(sender)
     
     # Extract URLs from body
-    urls = []
-    url_occurrences = []
+    clickable_hrefs: List[str] = []
+    clickable_occurrences: List[str] = []
+    seen = set()
     for u in URL_REGEX.findall(body_stripped):
         if u.startswith("www."):
             u = "http://" + u
         clean_u = u.strip().rstrip(".,;)>\"'")
         if clean_u:
-            url_occurrences.append(clean_u)
-        if clean_u not in urls:
-            urls.append(clean_u)
-        if len(urls) >= MAX_URLS_TO_ANALYZE:
-            break
+            clickable_occurrences.append(clean_u)
+            if clean_u not in seen:
+                seen.add(clean_u)
+                clickable_hrefs.append(clean_u)
+
+    bounded_urls = clickable_hrefs[:MAX_URLS_TO_ANALYZE]
 
     return EmailRecord(
         id="",
@@ -318,8 +354,10 @@ def parse_pasted_email(sender: str, body_or_headers: str, subject: str = "") -> 
         dmarc_verdict="none",
         message_id="",
         date="",
-        urls=urls,
-        url_occurrences=url_occurrences,
-        clickable_href_occurrences=[],
+        urls=bounded_urls,
+        url_occurrences=clickable_occurrences,
+        clickable_hrefs=clickable_hrefs,
+        clickable_href_occurrences=clickable_occurrences,
+        resource_urls=[],
         attachments=[]
     )

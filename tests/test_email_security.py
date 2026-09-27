@@ -421,6 +421,222 @@ You received this email because you are registered with Creatify AI.<br>
         self.assertEqual(evil["final_classification"], "MALICIOUS")
         self.assertEqual(result["url_metrics"]["malicious_urls"], 1)
 
+    def test_21_variance_infotech_regression_test(self):
+        """
+        TEST 1: Variance InfoTech placement email
+        - SPF = PASS, DKIM = PASS
+        - 1 clickable href (Google Forms registration link)
+        - 1 PDF attachment
+        - Google Forms link detected as actual clickable link
+        - No '0 hyperlinks' inconsistency; Overall verdict: SAFE
+        """
+        raw_eml = """From: SOUMYA PORWAL <23012011115@gnu.ac.in>
+To: student@gnu.ac.in
+Subject: Placement Opportunity – Variance InfoTech Pvt. Ltd. | 2027 Batch
+Date: Sun, 27 Sep 2026 12:00:00 +0000
+Authentication-Results: spf=pass dkim=pass dmarc=none
+Received-SPF: pass
+Content-Type: multipart/mixed; boundary="boundary_variance_123"
+
+--boundary_variance_123
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Dear Students,</p>
+<p>Greetings from Ganpat University Placement Cell!</p>
+<p>We are pleased to announce the campus recruitment opportunity for <b>Variance InfoTech Pvt. Ltd.</b> for the 2027 Batch.</p>
+<p>Interested eligible students must complete their registration before the deadline using the Google Form link below:</p>
+<p><a href="https://forms.gle/XYZ123VarianceRegistration">Click here to register on Google Form</a></p>
+<p>Please find the attached JD for detailed eligibility and job role descriptions.</p>
+<p>Best regards,<br>Placement Cell, Ganpat University</p>
+</body></html>
+
+--boundary_variance_123
+Content-Type: application/pdf; name="Variance_InfoTech_JD.pdf"
+Content-Disposition: attachment; filename="Variance_InfoTech_JD.pdf"
+
+JVBERi0xLjQKJcTl8uXrp...
+--boundary_variance_123--
+"""
+        record = parse_raw_eml(raw_eml)
+        self.assertEqual(record.from_domain, "gnu.ac.in")
+        self.assertEqual(record.spf_verdict, "pass")
+        self.assertEqual(record.dkim_verdict, "pass")
+        self.assertEqual(len(record.clickable_hrefs), 1, "Must detect exactly 1 clickable Google Form link")
+        self.assertEqual(len(record.attachments), 1, "Must detect 1 PDF attachment")
+        self.assertEqual(record.attachments[0].filename, "Variance_InfoTech_JD.pdf")
+
+        result = self.analyzer.analyze_record(record)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["verdict"], "Safe", "Authenticated placement email with Google Form must be SAFE")
+        self.assertEqual(result["classification"], "legitimate")
+        self.assertLess(result["risk_score"], 35.0)
+
+        # Verify metric consistency
+        url_metrics = result["url_metrics"]
+        self.assertEqual(url_metrics["unique_clickable_hrefs"], 1)
+        self.assertEqual(url_metrics["malicious_urls"], 0)
+        self.assertEqual(url_metrics["suspicious_urls"], 0)
+        self.assertEqual(result["meta"]["url_count"], 1, "Dashboard url_count must match 1 clickable href")
+        self.assertEqual(result["meta"]["attachment_count"], 1)
+
+    def test_22_hyperlink_infosystems_regression_test(self):
+        """
+        TEST 2: Hyperlink Infosystems placement email
+        - SPF = PASS, DKIM = PASS
+        - 1 clickable href (IP/sslip.io URL)
+        - 2 PDF attachments
+        - IP/sslip.io URL analyzed carefully as SUSPICIOUS (not automatically MALICIOUS)
+        - Overall verdict: SUSPICIOUS (not MALICIOUS)
+        """
+        raw_eml = """From: SOUMYA PORWAL <23012011115@gnu.ac.in>
+To: student@gnu.ac.in
+Subject: Campus Recruitment Opportunity - Hyperlink Infosystems | 2027 Batch
+Date: Sun, 27 Sep 2026 12:00:00 +0000
+Authentication-Results: spf=pass dkim=pass dmarc=none
+Received-SPF: pass
+Content-Type: multipart/mixed; boundary="boundary_hyperlink_456"
+
+--boundary_hyperlink_456
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Dear Students,</p>
+<p>Hyperlink Infosystems is conducting an on-campus placement drive for 2027 batch.</p>
+<p>Register on the campus recruitment portal link below:</p>
+<p><a href="http://192-168-1-50.sslip.io/candidate-portal">Candidate Registration Portal</a></p>
+<p>Kindly refer to the attached company profile and JD documents.</p>
+</body></html>
+
+--boundary_hyperlink_456
+Content-Type: application/pdf; name="Hyperlink_JD.pdf"
+Content-Disposition: attachment; filename="Hyperlink_JD.pdf"
+
+JVBERi0xLjQKJcTl8uXrp...
+--boundary_hyperlink_456
+Content-Type: application/pdf; name="Company_Profile.pdf"
+Content-Disposition: attachment; filename="Company_Profile.pdf"
+
+JVBERi0xLjQKJcTl8uXrp...
+--boundary_hyperlink_456--
+"""
+        record = parse_raw_eml(raw_eml)
+        self.assertEqual(record.from_domain, "gnu.ac.in")
+        self.assertEqual(record.spf_verdict, "pass")
+        self.assertEqual(record.dkim_verdict, "pass")
+        self.assertEqual(len(record.clickable_hrefs), 1, "Must detect exactly 1 clickable link")
+        self.assertEqual(len(record.attachments), 2, "Must detect 2 PDF attachments")
+
+        result = self.analyzer.analyze_record(record)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["verdict"], "Suspicious", "Dynamic IP sslip.io link must be SUSPICIOUS, not MALICIOUS")
+        self.assertEqual(result["classification"], "suspicious")
+        self.assertGreaterEqual(result["risk_score"], 35.0)
+        self.assertLess(result["risk_score"], 70.0)
+
+        # Verify link metrics
+        url_metrics = result["url_metrics"]
+        self.assertEqual(url_metrics["unique_clickable_hrefs"], 1)
+        self.assertEqual(url_metrics["suspicious_urls"], 1)
+        self.assertEqual(url_metrics["malicious_urls"], 0)
+
+    def test_23_labex_marketing_regression_test(self):
+        """
+        TEST 3: LabEx marketing email
+        - SPF = PASS, DKIM = PASS, DMARC = PASS
+        - 6 actual clickable hrefs (5 lab links + 1 unsubscribe)
+        - 4 resource/asset URLs (3 images + 1 tracking beacon)
+        - Tracking redirects detected separately
+        - CDN/image resources excluded from clickable hyperlink count
+        - Unsubscribe detected separately
+        - Overall email risk: SAFE (low risk)
+        - URL security signal reflects contextual risk (not inflated 93.4%)
+        """
+        raw_eml = """From: LabEx <noreply@support.labex.io>
+To: user@example.com
+Subject: 🎉 Look What You’ve Missed This Week!
+Date: Sun, 27 Sep 2026 12:00:00 +0000
+Authentication-Results: spf=pass dkim=pass dmarc=pass
+Received-SPF: pass
+Content-Type: text/html; charset=utf-8
+
+<html>
+<head>
+<style>
+.preheader { display:none !important; visibility:hidden; font-size:0; }
+</style>
+</head>
+<body>
+<span class="preheader">Check out the new weekly DevOps and Python labs on LabEx!</span>
+<img src="https://cdn.labex.io/assets/banner_weekly.png" alt="Banner">
+<h1>Explore New Interactive Hands-On Labs</h1>
+<p>Here are the top trending practical challenges launched this week:</p>
+<ul>
+    <li><a href="https://mail.labex.io/c/track1?url=https%3A%2F%2Flabex.io%2Fcourses%2Fdocker-essentials">Docker Container Mastery</a></li>
+    <li><a href="https://mail.labex.io/c/track2?url=https%3A%2F%2Flabex.io%2Fcourses%2Fkubernetes-basics">Kubernetes Pod Orchestration</a></li>
+    <li><a href="https://mail.labex.io/c/track3?url=https%3A%2F%2Flabex.io%2Fcourses%2Fpython-advanced">Advanced Python AsyncIO</a></li>
+    <li><a href="https://mail.labex.io/c/track4?url=https%3A%2F%2Flabex.io%2Fchallenges%2Fsecurity-audit">Linux Security Hardening Challenge</a></li>
+    <li><a href="https://mail.labex.io/c/track5?url=https%3A%2F%2Flabex.io%2Fpricing">Upgrade to LabEx Pro Membership</a></li>
+</ul>
+<p><a href="https://mail.labex.io/unsubscribe?user=12345">Unsubscribe from weekly digests</a></p>
+<img src="https://cdn.labex.io/static/images/logo.png" alt="Logo">
+<img src="https://images.unsplash.com/photo-1518770660439-4636190af475" alt="Tech">
+<img src="https://mail.labex.io/open/pixel.gif?token=abc123xyz" width="1" height="1" alt="">
+</body>
+</html>
+"""
+        record = parse_raw_eml(raw_eml)
+        self.assertEqual(record.from_domain, "support.labex.io")
+        self.assertEqual(record.spf_verdict, "pass")
+        self.assertEqual(record.dkim_verdict, "pass")
+        self.assertEqual(record.dmarc_verdict, "pass")
+        self.assertEqual(len(record.clickable_hrefs), 6, "Must identify exactly 6 clickable anchor links")
+        self.assertEqual(len(record.resource_urls), 4, "Must identify 4 image/CDN resource URLs")
+
+        result = self.analyzer.analyze_record(record)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["verdict"], "Safe", "Legitimate marketing email with valid auth must be SAFE")
+        self.assertEqual(result["classification"], "legitimate")
+        self.assertLess(result["risk_score"], 35.0)
+
+        # Verify URL metrics
+        url_metrics = result["url_metrics"]
+        self.assertEqual(url_metrics["unique_clickable_hrefs"], 6)
+        self.assertEqual(url_metrics["image_cdn_urls"], 4)
+        self.assertEqual(url_metrics["tracking_urls"], 5)
+        self.assertEqual(url_metrics["unsubscribe_urls"], 1)
+        self.assertEqual(url_metrics["malicious_urls"], 0)
+        self.assertEqual(result["meta"]["url_count"], 6)
+        # Verify URL security signal is not inflated
+        self.assertLessEqual(result["model_signals"]["url_security"], 20.0)
+
+    def test_24_metrics_and_dashboard_consistency(self):
+        """
+        Verify that Dashboard url_count, detailed Link Analysis unique_clickable_hrefs,
+        and database result_json come from the exact same source of truth.
+        """
+        raw_eml = """From: user@company.com
+To: student@company.com
+Subject: Test Email Links
+Authentication-Results: spf=pass dkim=pass
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p><a href="https://example.com/one">Link One</a></p>
+<p><a href="https://example.com/two">Link Two</a></p>
+<img src="https://cdn.example.com/image.png">
+</body></html>
+"""
+        record = parse_raw_eml(raw_eml)
+        result = self.analyzer.analyze_record(record)
+        url_metrics = result["url_metrics"]
+
+        self.assertEqual(result["meta"]["url_count"], 2)
+        self.assertEqual(url_metrics["unique_clickable_hrefs"], 2)
+        self.assertEqual(url_metrics["image_cdn_urls"], 1)
+        self.assertIn("**Unique Clickable Hrefs:** `2`", result["explanation_markdown"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

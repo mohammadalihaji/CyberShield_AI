@@ -390,19 +390,30 @@ def check_email():
         if not result.get("success"):
             return jsonify({"success": False, "error": result.get("error", "Email analysis failed.")}), 400
 
-        # Persist to database
+        # Persist to database with comprehensive telemetry
+        url_metrics = result.get('url_metrics', {})
+        meta = result.get('meta', {})
         scan_id = database.add_scan_record(
             scan_type='email',
             input_data=sender_display,
             risk_level=result.get('verdict', 'Suspicious'),
             result_json={
-                'body_snippet': result.get('meta', {}).get('subject', '')[:200] or sender_display[:200],
+                'body_snippet': meta.get('subject', '')[:200] or sender_display[:200],
                 'phishing_score': int(result.get('risk_score', 50)),
                 'calibrated_probability': result.get('calibrated_probability', 0.5),
                 'classification': result.get('classification', 'uncertain'),
                 'model_signals': result.get('model_signals', {}),
                 'evidence': result.get('evidence', []),
-                'meta': result.get('meta', {}),
+                'meta': meta,
+                'url_metrics': url_metrics,
+                'classified_urls': result.get('classified_urls', []),
+                'unique_clickable_hrefs': url_metrics.get('unique_clickable_hrefs', meta.get('url_count', 0)),
+                'suspicious_links': url_metrics.get('suspicious_urls', 0),
+                'malicious_links': url_metrics.get('malicious_urls', 0),
+                'attachment_count': meta.get('attachment_count', 0),
+                'spf_check': meta.get('spf', 'none'),
+                'dkim_check': meta.get('dkim', 'none'),
+                'dmarc_check': meta.get('dmarc', 'none'),
                 'model_version': result.get('model_version', '')
             },
             raw_detail=result.get('explanation_markdown', ''),

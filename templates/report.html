@@ -363,11 +363,19 @@
             {% elif report.scan_type == 'email' %}
                 <div class="feature-item">
                     <span class="val">{{ report.result_json.get('phishing_score', 'N/A') }}%</span>
-                    <span class="lbl">Fraud Score</span>
+                    <span class="lbl">Risk Score</span>
                 </div>
                 <div class="feature-item">
-                    <span class="val">{{ report.result_json.get('suspicious_links', 0) }}</span>
+                    <span class="val">{{ report.result_json.get('unique_clickable_hrefs', report.result_json.get('url_metrics', {}).get('unique_clickable_hrefs', report.result_json.get('meta', {}).get('url_count', 0))) }}</span>
                     <span class="lbl">Hyperlinks Count</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('suspicious_links', report.result_json.get('url_metrics', {}).get('suspicious_urls', 0)) }}</span>
+                    <span class="lbl">Suspicious Links</span>
+                </div>
+                <div class="feature-item">
+                    <span class="val">{{ report.result_json.get('attachment_count', report.result_json.get('meta', {}).get('attachment_count', 0)) }}</span>
+                    <span class="lbl">Attachments</span>
                 </div>
             {% elif report.scan_type == 'password' %}
                 <div class="feature-item">

@@ -93,9 +93,19 @@ class EmailSecurityAnalyzer:
         return self.text_embedder.encode([combined])
 
     def analyze_record(self, record: EmailRecord) -> Dict[str, Any]:
-        """Analyzes an EmailRecord through the complete multi-modal ML pipeline."""
+        """
+        Analyzes an EmailRecord through the complete multi-modal ML pipeline:
+        1. Multi-modal feature extraction (headers, DOM, attachments, contextual URLs)
+        2. Transformer text embeddings & structured tree model prediction
+        3. Contextual URL security evaluation
+        4. Out-of-fold stacking ensemble & probability calibration
+        5. Deterministic multi-factor evidence aggregation
+        6. Explainable AI reporting
+        """
         # 1. Structured Feature Extraction
         struct_vec, struct_dict = self.feature_extractor.extract_vector(record)
+        url_metrics = struct_dict.get("url_metrics", {})
+        classified_urls = struct_dict.get("classified_urls", [])
         url_risk = float(struct_dict.get("email_max_url_risk", 0.0))
 
         # 2. Text Model Prediction
@@ -109,53 +119,89 @@ class EmailSecurityAnalyzer:
         if self.struct_model_bundle is not None and "binary_model" in self.struct_model_bundle:
             struct_prob = float(self.struct_model_bundle["binary_model"].predict_proba(struct_vec.reshape(1, -1))[0, 1])
 
-        # 4. Out-of-Fold Stacking & Probability Calibration
+        # 4. Out-of-Fold Stacking & Initial Calibrated Probability
         meta_vec = assemble_meta_vector(text_prob, struct_prob, url_risk)
         
         if self.calibrator is not None:
-            cal_prob = float(self.calibrator.predict_proba(meta_vec)[0, 1])
+            raw_cal_prob = float(self.calibrator.predict_proba(meta_vec)[0, 1])
         elif self.meta_model is not None:
-            cal_prob = float(self.meta_model.predict_proba(meta_vec)[0, 1])
+            raw_cal_prob = float(self.meta_model.predict_proba(meta_vec)[0, 1])
         else:
-            # Fallback heuristic combination
-            cal_prob = float(0.45 * text_prob + 0.40 * struct_prob + 0.15 * url_risk)
+            raw_cal_prob = float(0.40 * text_prob + 0.35 * struct_prob + 0.25 * url_risk)
 
-        # 5. Determine Verdict and 3-Class Probabilities
-        risk_score = round(cal_prob * 100.0, 1)
+        # 5. Deterministic Multi-Factor Evidence-Based Aggregation
+        # Identifies confirmed threats vs suspicious signals vs verified authentication
+        has_executable_attachment = bool(
+            struct_dict.get("has_executable_attachment", 0) or
+            struct_dict.get("has_double_extension_attachment", 0) or
+            struct_dict.get("has_macro_attachment", 0)
+        )
+        has_anchor_mismatch = bool(struct_dict.get("html_anchor_href_mismatch_count", 0) > 0)
+        has_brand_impersonation = bool(struct_dict.get("email_has_brand_in_subdomain_url", 0))
+        has_hidden_form = bool(struct_dict.get("has_hidden_form", 0))
+        
+        malicious_url_count = url_metrics.get("malicious_urls", 0)
+        suspicious_url_count = url_metrics.get("suspicious_urls", 0)
 
-        # Uncertain / Suspicious state handling
-        is_uncertain = False
-        if abs(cal_prob - 0.50) < 0.05 or (not record.plain_text and not record.html and not record.subject):
-            is_uncertain = True
+        spf_ok = (record.spf_verdict == "pass")
+        dkim_ok = (record.dkim_verdict == "pass")
+        auth_passed = spf_ok and dkim_ok
+        auth_failed = (record.spf_verdict == "fail" or record.dkim_verdict == "fail" or record.dmarc_verdict == "fail")
+        from_reply_mismatch = bool(struct_dict.get("from_reply_to_mismatch", 0))
 
-        if is_uncertain:
-            verdict = "Suspicious"
-            classification = "uncertain"
-        elif cal_prob < DECISION_THRESHOLDS["LEGITIMATE_MAX"]:
-            verdict = "Safe"
-            classification = "legitimate"
-        elif cal_prob < DECISION_THRESHOLDS["SUSPICIOUS_MAX"]:
+        has_hard_threat = (
+            has_executable_attachment or
+            has_anchor_mismatch or
+            has_brand_impersonation or
+            has_hidden_form or
+            (malicious_url_count > 0) or
+            (auth_failed and from_reply_mismatch)
+        )
+
+        cal_prob = raw_cal_prob
+
+        # Case A: Confirmed Hard Threat -> MALICIOUS
+        if has_hard_threat:
+            cal_prob = max(cal_prob, 0.85)
+            verdict = "Malicious"
+            classification = "phishing"
+
+        # Case B: Suspicious Signals without Hard Threats -> SUSPICIOUS
+        elif suspicious_url_count > 0:
+            # Dynamic IP / unknown dynamic hostname without hard payload -> strictly SUSPICIOUS
+            cal_prob = min(max(cal_prob, 0.45), 0.60)
             verdict = "Suspicious"
             classification = "suspicious"
-        else:
-            verdict = "Malicious"
-            # Distinguish Phishing vs Spam
-            # If high URL risk or anchor mismatch or credential/auth spoofing -> Phishing, else generic Spam
-            is_phishing = (
-                url_risk >= 0.40 or
-                struct_dict.get("html_anchor_href_mismatch_count", 0) > 0 or
-                struct_dict.get("has_executable_attachment", 0) == 1 or
-                struct_dict.get("from_reply_to_mismatch", 0) == 1 or
-                struct_dict.get("auth_failure_count", 0) > 0
-            )
-            classification = "phishing" if is_phishing else "spam"
 
+        # Case C: Authenticated Sender + Zero Malicious/Suspicious Links/Attachments -> SAFE
+        elif auth_passed and not has_hard_threat and suspicious_url_count == 0:
+            # Cryptographically authenticated, clean attachments, clean links
+            # Dampen text-only false positives on normal job/placement/newsletter words
+            if cal_prob >= DECISION_THRESHOLDS["LEGITIMATE_MAX"]:
+                cal_prob = min(cal_prob * 0.35, 0.25)
+            verdict = "Safe"
+            classification = "legitimate"
+
+        # Case D: General Classification
+        else:
+            is_empty = (not record.plain_text and not record.html and not record.subject)
+            if is_empty or abs(cal_prob - 0.50) < 0.05:
+                verdict = "Suspicious"
+                classification = "uncertain" if is_empty else "suspicious"
+            elif cal_prob < DECISION_THRESHOLDS["LEGITIMATE_MAX"]:
+                verdict = "Safe"
+                classification = "legitimate"
+            elif cal_prob < DECISION_THRESHOLDS["SUSPICIOUS_MAX"]:
+                verdict = "Suspicious"
+                classification = "suspicious"
+            else:
+                verdict = "Malicious"
+                classification = "phishing" if (url_risk >= 0.70 or from_reply_mismatch) else "spam"
+
+        risk_score = round(cal_prob * 100.0, 1)
         ham_prob = round(1.0 - cal_prob, 4)
         phish_prob = round(cal_prob if classification == "phishing" else cal_prob * 0.7, 4)
         spam_prob = round(cal_prob if classification == "spam" else cal_prob * 0.3, 4)
-
-        url_metrics = struct_dict.get("url_metrics", {})
-        classified_urls = struct_dict.get("classified_urls", [])
 
         pred_summary = {
             "verdict": verdict,
@@ -206,7 +252,7 @@ class EmailSecurityAnalyzer:
                 "sender": record.from_address,
                 "sender_domain": record.from_domain,
                 "subject": record.subject,
-                "url_count": len(record.urls),
+                "url_count": url_metrics.get("unique_clickable_hrefs", len(record.clickable_hrefs or record.urls)),
                 "attachment_count": len(record.attachments),
                 "spf": record.spf_verdict,
                 "dkim": record.dkim_verdict,
