@@ -423,46 +423,173 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ==========================================
-    // 4. Email Phishing Analyzer — XAI Enhanced
+    // 4. Email Phishing & Spam Analyzer — Multi-Modal ML Engine
     // ==========================================
     const formEmail = document.getElementById('form-email');
     const emailLoader = document.getElementById('email-loader');
     const emailResults = document.getElementById('email-results');
+    const tabBtnPaste = document.getElementById('tab-btn-paste-email');
+    const tabBtnUpload = document.getElementById('tab-btn-upload-eml');
+    const emailModePaste = document.getElementById('email-mode-paste');
+    const emailModeUpload = document.getElementById('email-mode-upload');
+    const emlDropzone = document.getElementById('eml-dropzone');
+    const emlFileInput = document.getElementById('input-eml-file');
+    const emlDisplay = document.getElementById('eml-file-display');
+    const emlFilenameText = document.getElementById('eml-filename-text');
+    const btnRemoveEml = document.getElementById('btn-remove-eml');
+
+    let currentEmailMode = 'paste'; // 'paste' or 'upload'
+
+    if (tabBtnPaste && tabBtnUpload) {
+        tabBtnPaste.addEventListener('click', function() {
+            currentEmailMode = 'paste';
+            tabBtnPaste.classList.add('active');
+            tabBtnUpload.classList.remove('active');
+            emailModePaste.classList.remove('hidden');
+            emailModeUpload.classList.add('hidden');
+        });
+
+        tabBtnUpload.addEventListener('click', function() {
+            currentEmailMode = 'upload';
+            tabBtnUpload.classList.add('active');
+            tabBtnPaste.classList.remove('active');
+            emailModeUpload.classList.remove('hidden');
+            emailModePaste.classList.add('hidden');
+        });
+    }
+
+    if (emlDropzone && emlFileInput) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            emlDropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                emlDropzone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            emlDropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                emlDropzone.classList.remove('dragover');
+            }, false);
+        });
+
+        emlDropzone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                emlFileInput.files = files;
+                handleEmlSelection(files[0]);
+            }
+        });
+
+        emlFileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                handleEmlSelection(this.files[0]);
+            }
+        });
+    }
+
+    function handleEmlSelection(file) {
+        if (!file.name.toLowerCase().endsWith('.eml') && !file.name.toLowerCase().endsWith('.msg') && file.type !== 'message/rfc822') {
+            alert('Selected file should be an .eml or RFC-822 message.');
+        }
+        if (emlFilenameText && emlDisplay && emlDropzone) {
+            emlFilenameText.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            emlDropzone.classList.add('hidden');
+            emlDisplay.classList.remove('hidden');
+        }
+    }
+
+    if (btnRemoveEml) {
+        btnRemoveEml.addEventListener('click', function() {
+            if (emlFileInput) emlFileInput.value = '';
+            if (emlDisplay) emlDisplay.classList.add('hidden');
+            if (emlDropzone) emlDropzone.classList.remove('hidden');
+        });
+    }
     
     if (formEmail) {
         formEmail.addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const sender = document.getElementById('input-email-sender').value.trim();
-            const body = document.getElementById('input-email-body').value.trim();
-            
-            if (!sender || !body) return;
-            
+            let fetchPromise;
             emailResults.classList.add('inactive');
             emailLoader.classList.remove('hidden');
+
+            if (currentEmailMode === 'upload') {
+                const file = emlFileInput ? emlFileInput.files[0] : null;
+                if (!file) {
+                    emailLoader.classList.add('hidden');
+                    alert('Please select or drag-and-drop a .eml file to analyze.');
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('eml_file', file);
+                fetchPromise = fetch('/api/check-email', {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                const sender = document.getElementById('input-email-sender').value.trim();
+                const subject = document.getElementById('input-email-subject') ? document.getElementById('input-email-subject').value.trim() : '';
+                const body = document.getElementById('input-email-body').value.trim();
+                
+                if (!sender && !body) {
+                    emailLoader.classList.add('hidden');
+                    alert('Please provide an email sender address and body text or headers.');
+                    return;
+                }
+
+                fetchPromise = fetch('/api/check-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender: sender, subject: subject, body: body })
+                });
+            }
             
-            fetch('/api/check-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sender: sender, body: body })
-            })
+            fetchPromise
             .then(res => res.json())
             .then(data => {
                 emailLoader.classList.add('hidden');
                 if (data.success) {
                     const res = data.result;
                     
-                    // Threat Verdict
+                    // Threat Verdict & Classification
                     const riskDisplay = document.getElementById('email-risk-level');
-                    riskDisplay.textContent = res.risk_level;
-                    riskDisplay.className = `value badge-display status-badge ${res.risk_level.toLowerCase()}`;
+                    const verdictText = res.classification ? res.classification.toUpperCase() : (res.verdict || 'SUSPICIOUS').toUpperCase();
+                    riskDisplay.textContent = verdictText;
+                    
+                    const badgeClass = res.verdict ? res.verdict.toLowerCase() : 'suspicious';
+                    riskDisplay.className = `value badge-display status-badge ${badgeClass}`;
+
+                    // Calibrated Risk Score
+                    const calibratedRiskEl = document.getElementById('email-calibrated-risk');
+                    if (calibratedRiskEl) {
+                        const score = res.risk_score !== undefined ? res.risk_score : 50.0;
+                        calibratedRiskEl.textContent = `${score}% Risk`;
+                        calibratedRiskEl.className = `value ${score >= 70 ? 'text-red' : (score >= 35 ? 'text-yellow' : 'text-green')}`;
+                    }
+
+                    // Model Signals — dynamic risk coloring
+                    function setSignalCard(id, value) {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        el.textContent = (value !== undefined && value !== null) ? value : '--%';
+                        const pct = parseFloat(value) || 0;
+                        el.style.color = pct >= 70 ? '#ff3366' : (pct >= 35 ? '#ffb300' : '#00e676');
+                    }
+                    const signals = res.model_signals || {};
+                    setSignalCard('signal-text-val', signals.text_model !== undefined ? `${signals.text_model}%` : '--%');
+                    setSignalCard('signal-struct-val', signals.structured_model !== undefined ? `${signals.structured_model}%` : '--%');
+                    setSignalCard('signal-url-val', signals.url_security !== undefined ? `${signals.url_security}%` : '--%');
+                    setSignalCard('signal-ensemble-val', signals.ensemble !== undefined ? `${signals.ensemble}%` : '--%');
                     
                     // XAI markdown report
                     document.getElementById('email-markdown').innerHTML = parseMarkdown(res.explanation_markdown);
                     emailResults.classList.remove('inactive');
                     refreshStats();
                 } else {
-                    alert("Email phishing scan error: " + data.error);
+                    alert("Email phishing scan error: " + (data.error || 'Analysis failed'));
                 }
             })
             .catch(err => {

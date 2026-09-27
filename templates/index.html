@@ -371,24 +371,56 @@
                     </div>
                 </div>
 
-                <!-- 4. Email Phishing Analyzer -->
+                <!-- 4. Email Spam & Phishing Analyzer (ML Engine) -->
                 <div class="tab-panel" id="panel-email">
-                    <h2 class="panel-title"><i class="fa-solid fa-envelope-open-text"></i> Email Phishing Analyzer</h2>
-                    <p class="panel-desc">Analyze suspicious message layouts, copy patterns, urgency keywords, and spoofed domain footprints.</p>
+                    <h2 class="panel-title"><i class="fa-solid fa-envelope-open-text"></i> ML Email Spam & Phishing Detection Engine</h2>
+                    <p class="panel-desc">Multi-modal AI security assessment analyzing RFC headers, transformer text embeddings, HTML DOM obfuscation, and URL security heuristics.</p>
                     
                     <div class="glass-card panel-workflow-split">
                         <div class="form-inputs-group">
+                            <!-- Toggle Input Mode -->
+                            <div class="email-input-tabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                                <button type="button" class="btn btn-secondary btn-sm active" id="tab-btn-paste-email" style="flex: 1;">
+                                    <i class="fa-solid fa-paste"></i> Paste Text / Headers
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="tab-btn-upload-eml" style="flex: 1;">
+                                    <i class="fa-solid fa-file-arrow-up"></i> Upload .EML File
+                                </button>
+                            </div>
+
                             <form id="form-email" class="secure-form">
-                                <div class="input-glow-wrapper">
-                                    <label for="input-email-sender"><i class="fa-solid fa-at"></i> Sender Address</label>
-                                    <input type="email" id="input-email-sender" placeholder="support@secure-update-alert.net" required>
+                                <!-- Mode 1: Pasted Text -->
+                                <div id="email-mode-paste">
+                                    <div class="input-glow-wrapper">
+                                        <label for="input-email-sender"><i class="fa-solid fa-at"></i> Sender Address (Optional if in headers)</label>
+                                        <input type="email" id="input-email-sender" placeholder="security-alert@suspicious-domain.com">
+                                    </div>
+                                    <div class="input-glow-wrapper">
+                                        <label for="input-email-subject"><i class="fa-solid fa-heading"></i> Subject Line (Optional)</label>
+                                        <input type="text" id="input-email-subject" placeholder="Urgent: Account Verification Required">
+                                    </div>
+                                    <div class="input-glow-wrapper">
+                                        <label for="input-email-body"><i class="fa-solid fa-align-left"></i> Email Body or Raw RFC-822 Text</label>
+                                        <textarea id="input-email-body" rows="7" placeholder="Paste the complete body or full raw email text including headers here..."></textarea>
+                                    </div>
                                 </div>
-                                <div class="input-glow-wrapper">
-                                    <label for="input-email-body"><i class="fa-solid fa-align-left"></i> Email Body / Headers</label>
-                                    <textarea id="input-email-body" rows="8" placeholder="Paste the complete text or raw headers of the email here..." required></textarea>
+
+                                <!-- Mode 2: EML File Upload -->
+                                <div id="email-mode-upload" class="hidden">
+                                    <div class="drag-drop-area" id="eml-dropzone">
+                                        <input type="file" id="input-eml-file" accept=".eml,.msg,message/rfc822" class="file-hidden-input">
+                                        <i class="fa-solid fa-envelope-circle-check dropzone-icon"></i>
+                                        <h4>Drag & Drop .eml file here</h4>
+                                        <p>or click to browse local files (RFC 5322 MIME messages up to 16MB)</p>
+                                    </div>
+                                    <div id="eml-file-display" class="hidden" style="padding: 10px; margin-top: 10px; background: rgba(0, 243, 255, 0.05); border: 1px solid rgba(0, 243, 255, 0.2); border-radius: 6px;">
+                                        <i class="fa-solid fa-file-lines text-cyan"></i> <span id="eml-filename-text" style="font-family: monospace;"></span>
+                                        <button type="button" class="btn btn-secondary btn-sm" id="btn-remove-eml" style="float: right; padding: 2px 8px;">Remove</button>
+                                    </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary btn-block" id="btn-submit-email">
-                                    <span>Inspect Message Header</span>
+
+                                <button type="submit" class="btn btn-primary btn-block margin-top-2" id="btn-submit-email">
+                                    <span>Analyze Email Security</span>
                                     <i class="fa-solid fa-envelope-shield"></i>
                                 </button>
                             </form>
@@ -397,21 +429,45 @@
                         <div class="results-visual-container inactive" id="email-results">
                             <div class="metrics-glance-bar">
                                 <div class="glance-item">
-                                    <span class="label">Threat Verdict</span>
+                                    <span class="label">Classification</span>
                                     <span class="value badge-display" id="email-risk-level">--</span>
+                                </div>
+                                <div class="glance-item">
+                                    <span class="label">Calibrated Risk</span>
+                                    <span class="value text-red" id="email-calibrated-risk">--</span>
+                                </div>
+                            </div>
+
+                            <!-- Model Signals Grid -->
+                            <div class="model-signals-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 15px 0;">
+                                <div class="signal-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; text-align: center;">
+                                    <div style="font-size: 0.7rem; color: #8fa0b5; text-transform: uppercase;">Content Analysis</div>
+                                    <div id="signal-text-val" style="font-size: 1.1rem; font-weight: 700;">--%</div>
+                                </div>
+                                <div class="signal-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; text-align: center;">
+                                    <div style="font-size: 0.7rem; color: #8fa0b5; text-transform: uppercase;">Structure Analysis</div>
+                                    <div id="signal-struct-val" style="font-size: 1.1rem; font-weight: 700;">--%</div>
+                                </div>
+                                <div class="signal-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; text-align: center;">
+                                    <div style="font-size: 0.7rem; color: #8fa0b5; text-transform: uppercase;">Link Analysis</div>
+                                    <div id="signal-url-val" style="font-size: 1.1rem; font-weight: 700;">--%</div>
+                                </div>
+                                <div class="signal-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; text-align: center;">
+                                    <div style="font-size: 0.7rem; color: #8fa0b5; text-transform: uppercase;">Combined ML</div>
+                                    <div id="signal-ensemble-val" style="font-size: 1.1rem; font-weight: 700;">--%</div>
                                 </div>
                             </div>
                             
                             <hr class="dark-hr">
                             
                             <div class="scan-explanation-markdown telemetry-font" id="email-markdown">
-                                <!-- Markdown email analysis -->
+                                <!-- Markdown email analysis findings -->
                             </div>
                         </div>
                         
                         <div class="analyzer-loading-box hidden" id="email-loader">
                             <div class="scanner-anim"></div>
-                            <span class="lbl-scanning">Analyzing mail urgency, social engineering hooks, and SPF alignments via Gemini LLM...</span>
+                            <span class="lbl-scanning">Executing Multi-Modal Feature Extraction, Transformer Embedding, and Stacking Ensemble...</span>
                         </div>
                     </div>
                 </div>

@@ -195,3 +195,5 @@ uploads/*
 # Large dataset files (model artifacts are tracked via Git LFS)
 data/compPhish_v4/*
 !data/compPhish_v4/README.md
+data/email/raw/
+data/email/*.zip

@@ -1,0 +1,11 @@
+{
+  "model_version": "CyberShield-Email-Security-v1",
+  "feature_schema_version": "1.0.0",
+  "transformer_model_name": "all-MiniLM-L6-v2",
+  "meta_model_type": "LogisticRegression Stacking Meta-Learner",
+  "calibration_method": "Platt Scaling (Sigmoid)",
+  "brier_score_loss": 0.0319,
+  "expected_calibration_error": 0.0164,
+  "structured_feature_count": 58,
+  "oof_folds": 5
+}

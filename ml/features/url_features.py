@@ -114,7 +114,12 @@ def extract_url_features(url: str) -> Dict[str, Any]:
     except ValueError:
         is_ip = 0
 
-    port = parsed.port
+    port = None
+    try:
+        port = parsed.port
+    except (ValueError, Exception):
+        port = None
+
     has_port = 1 if port is not None else 0
     is_suspicious_port = 1 if port is not None and port not in (80, 443, 8080, 8443) else 0
 
@@ -180,11 +185,15 @@ def extract_url_features(url: str) -> Dict[str, Any]:
     brand_substr_dom = 0
     brand_path_query = 0
     for b in HIGH_TARGET_BRANDS:
-        if b in subdomain_part:
+        # If the base domain belongs to the brand itself (e.g., paypal.com, apple.com), it's not impersonation
+        if base_domain.startswith(b + ".") or base_domain == b:
+            continue
+        brand_regex = re.compile(rf'(^|[-_.@]){b}([-_.@]|$)', re.IGNORECASE)
+        if subdomain_part and brand_regex.search(subdomain_part):
             brand_sub = 1
-        if b in hostname and b not in base_domain:
+        if hostname and brand_regex.search(hostname) and b not in base_domain:
             brand_substr_dom = 1
-        if b in path_query_lower and b not in base_domain:
+        if path_query_lower and brand_regex.search(path_query_lower) and b not in base_domain:
             brand_path_query = 1
 
     words = re.findall(r"\w+", clean_url)

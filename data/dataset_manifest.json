@@ -1,0 +1,102 @@
+{
+  "manifest_version": "1.0",
+  "generated_at": "2026-09-27T11:47:00Z",
+  "description": "Dataset catalog and metadata registry for CyberShield AI Email Security subsystem.",
+  "datasets": [
+    {
+      "dataset_name": "Enron-Spam Corpus",
+      "source": "Enron Corporation email archive / Metsis et al. (Spam/Ham benchmark)",
+      "version": "2006-standardized",
+      "license": "Public Domain / Research Use",
+      "format": "CSV (Message ID, Subject, Message, Spam/Ham, Date)",
+      "raw_path": "data/email/raw/enron_spam/enron_spam_data/enron_spam_data.csv",
+      "samples": 33716,
+      "classes": {
+        "ham": 16545,
+        "spam": 17171
+      },
+      "fields": [
+        "Message ID",
+        "Subject",
+        "Message",
+        "Spam/Ham",
+        "Date"
+      ]
+    },
+    {
+      "dataset_name": "SpamAssassin Public Corpus",
+      "source": "Apache SpamAssassin Project (Public corpus archive)",
+      "version": "20030228",
+      "license": "Apache License 2.0 / Public Research",
+      "format": "Raw RFC-822 MIME email files (easy_ham, easy_ham_2, hard_ham, spam, spam_2)",
+      "raw_path": "data/email/raw/spamassassin/",
+      "samples": 6047,
+      "classes": {
+        "ham": 4150,
+        "spam": 1897
+      },
+      "fields": [
+        "raw_headers",
+        "subject",
+        "body",
+        "html",
+        "attachments",
+        "from",
+        "to",
+        "received"
+      ]
+    },
+    {
+      "dataset_name": "MeAJOR Email Phishing & Benign Corpus",
+      "source": "MeAJOR Public Security Dataset (Parquet benchmark)",
+      "version": "v1.0-preprocessed",
+      "license": "Open Research Dataset",
+      "format": "Parquet Gzip",
+      "raw_path": "data/email/raw/meajor/meajor_cleaned_preprocessed.parquet.gzip",
+      "samples": 108685,
+      "classes": {
+        "legitimate": 60650,
+        "phishing": 48034
+      },
+      "fields": [
+        "sender",
+        "sender_domain",
+        "receiver",
+        "receiver_domain",
+        "date",
+        "subject",
+        "content_types",
+        "body",
+        "urls",
+        "url_count",
+        "url_length_max",
+        "url_length_avg",
+        "url_subdom_max",
+        "url_subdom_avg",
+        "attachment_count",
+        "has_attachments",
+        "attachment_types",
+        "language",
+        "source",
+        "label"
+      ]
+    },
+    {
+      "dataset_name": "TREC 2007 Spam Track",
+      "source": "Text REtrieval Conference (TREC) 2007 Public Corpus",
+      "version": "2007-origin",
+      "license": "TREC Evaluation License / Academic",
+      "format": "CSV (Zip)",
+      "raw_path": "data/email/raw/trec2007/email_origin.csv.zip",
+      "samples": 75419,
+      "classes": {
+        "ham": 25220,
+        "spam": 50199
+      },
+      "fields": [
+        "label",
+        "origin"
+      ]
+    }
+  ]
+}

@@ -343,46 +343,179 @@ def check_image():
         logger.error(f"Error verifying image: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+# ==============================================================================
+# Email Security Analyzer (Local Multi-Modal ML Engine)
+# ==============================================================================
+
+from ml.email.analyzer import EmailSecurityAnalyzer
+
 @app.route('/api/check-email', methods=['POST'])
+@app.route('/api/email/scan', methods=['POST'])
 def check_email():
     """
-    Email Phishing Inspection Endpoint.
+    Email Phishing & Spam Inspection Endpoint.
+    Uses local Multi-Modal ML Engine (Transformer Embeddings + Structured Features + URL Security Model + OOF Stacking + Calibration).
+    Accepts:
+      - Multipart file upload: .eml file in request.files['eml_file'] or request.files['file']
+      - JSON body: {"sender": "...", "body": "...", "subject": "..."}
+      - Form data: sender, body, subject
     """
     try:
-        data = request.get_json() or {}
-        sender = data.get('sender', '').strip()
-        body = data.get('body', '').strip()
-        
-        if not sender or not body:
-            return jsonify({"success": False, "error": "Both sender and email body must be provided."}), 400
-            
-        result = gemini_service.analyze_email(sender, body)
+        analyzer = EmailSecurityAnalyzer()
         user_id = g.user.id if g.user else None
 
+        # Check for uploaded .eml file
+        uploaded_file = request.files.get('eml_file') or request.files.get('file')
+        if uploaded_file and uploaded_file.filename:
+            filename = secure_filename(uploaded_file.filename)
+            raw_bytes = uploaded_file.read()
+            if len(raw_bytes) > app.config['MAX_CONTENT_LENGTH']:
+                return jsonify({"success": False, "error": "Email file exceeds 16MB limit."}), 400
+            
+            result = analyzer.analyze_eml_bytes(raw_bytes)
+            sender_display = result.get("meta", {}).get("sender") or filename
+        else:
+            # Check JSON or Form data
+            data = request.get_json(silent=True) or request.form or {}
+            sender = data.get('sender', '').strip()
+            body = data.get('body', '').strip()
+            subject = data.get('subject', '').strip()
+
+            if not sender and not body:
+                return jsonify({"success": False, "error": "Please provide an email sender and body or upload a .eml file."}), 400
+
+            result = analyzer.analyze_pasted(sender=sender, body_or_headers=body, subject=subject)
+            sender_display = sender or "pasted_email"
+
+        if not result.get("success"):
+            return jsonify({"success": False, "error": result.get("error", "Email analysis failed.")}), 400
+
+        # Persist to database
         scan_id = database.add_scan_record(
             scan_type='email',
-            input_data=sender,
-            risk_level=result.get('risk_level', 'Suspicious'),
+            input_data=sender_display,
+            risk_level=result.get('verdict', 'Suspicious'),
             result_json={
-                'body_snippet': body[:200],
-                'phishing_score': result.get('phishing_score', 50),
-                'urgency': result.get('urgency', 'Medium'),
-                'suspicious_links': result.get('suspicious_links', 0),
-                'spoofed_domain': result.get('spoofed_domain', False),
-                'spf_check': result.get('spf_check', 'Neutral'),
-                'dkim_check': result.get('dkim_check', 'Not Available'),
-                'dmarc_check': result.get('dmarc_check', 'Not Available'),
-                'social_engineering': result.get('social_engineering', 'Not Assessed')
+                'body_snippet': result.get('meta', {}).get('subject', '')[:200] or sender_display[:200],
+                'phishing_score': int(result.get('risk_score', 50)),
+                'calibrated_probability': result.get('calibrated_probability', 0.5),
+                'classification': result.get('classification', 'uncertain'),
+                'model_signals': result.get('model_signals', {}),
+                'evidence': result.get('evidence', []),
+                'meta': result.get('meta', {}),
+                'model_version': result.get('model_version', '')
             },
             raw_detail=result.get('explanation_markdown', ''),
             user_id=user_id
         )
-        
+
         result['scan_id'] = scan_id
         return jsonify({"success": True, "result": result})
     except Exception as e:
-        logger.error(f"Error checking email: {e}")
+        logger.error(f"Error checking email: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/email/scan/<int:scan_id>', methods=['GET'])
+def get_email_scan(scan_id):
+    """Retrieves JSON scan telemetry for an email scan record."""
+    report = database.get_scan_by_id(scan_id, scan_type='email')
+    if not report:
+        return jsonify({"success": False, "error": "Scan record not found."}), 404
+    return jsonify({"success": True, "scan": report})
+
+@app.route('/api/email/report/<int:scan_id>', methods=['GET'])
+def get_email_report(scan_id):
+    """Renders printable security audit report for an email scan."""
+    report = database.get_scan_by_id(scan_id, scan_type='email')
+    if not report:
+        return "Email scan report not found.", 404
+    return render_template('report.html', report=report)
+
+@app.route('/api/email/url-debug', methods=['POST'])
+def email_url_debug():
+    """
+    Diagnostic endpoint: Runs ONLY the URL classification pipeline on the submitted email.
+    Returns full per-URL forensics (category, CompPhish raw score, contextual risk, reason).
+    Does NOT run the full ML inference pipeline.
+    """
+    try:
+        from ml.email.parser import parse_raw_eml, parse_pasted_email
+        from ml.email.url_aggregator import EmailURLAggregator
+        from ml.email.url_classifier import normalize_url, classify_single_url, detect_brand_impersonation, compute_contextual_url_risk
+        from ml.email.domain_analyzer import get_organizational_domain
+        from ml.features.url_features import extract_url_features
+        from ml.models.model_registry import ModelRegistry
+
+        # Accept file upload or JSON/form
+        uploaded_file = request.files.get('eml_file') or request.files.get('file')
+        if uploaded_file and uploaded_file.filename:
+            raw_bytes = uploaded_file.read()
+            record = parse_raw_eml(raw_bytes)
+        else:
+            data = request.get_json(silent=True) or request.form or {}
+            sender = data.get('sender', '').strip()
+            body = data.get('body', '').strip()
+            subject = data.get('subject', '').strip()
+            if not sender and not body:
+                return jsonify({"success": False, "error": "Provide sender+body or upload .eml"}), 400
+            record = parse_pasted_email(sender=sender, body_or_headers=body, subject=subject)
+
+        sender_domain = (record.from_domain or '').lower()
+        sender_org = get_organizational_domain(sender_domain)
+        aggregation = EmailURLAggregator().analyze_urls(record)
+        metrics = aggregation["url_metrics"]
+        url_forensics = []
+        for item in aggregation["classified_urls"]:
+            brand_check = item.get("brand_check", {})
+            destination_features = item.get("destination_features", {})
+            url_forensics.append({
+                "original_urls": item.get("original_urls", [item.get("url", "")]),
+                "occurrence_count": item.get("occurrence_count", 1),
+                "normalized_url": item.get("url", ""),
+                "wrapper_domain": item.get("org_domain", ""),
+                "decoded_destination": item.get("destination_url", ""),
+                "destination_domain": item.get("destination_domain", ""),
+                "category": item.get("category", "DIRECT"),
+                "is_tracking": item.get("is_tracking", False),
+                "is_social": item.get("is_social", False),
+                "is_unsubscribe": item.get("is_unsubscribe", False),
+                "is_cdn_asset": item.get("is_cdn_asset", False),
+                "brand_detected": brand_check.get("brand") or None,
+                "brand_domain_relationship": "IMPERSONATION" if brand_check.get("is_impersonation") else "NO_BRAND_IMPERSONATION",
+                "wrapper_risk": item.get("wrapper_risk", 0.0),
+                "destination_risk": item.get("destination_risk", 0.0),
+                "compphish_probability": item.get("raw_url_model_risk", 0.0),
+                "destination_features": destination_features,
+                "final_url_verdict": item.get("final_classification", "SAFE"),
+                "reason": item.get("contextual_reason", ""),
+            })
+
+        malicious = [u for u in url_forensics if u["final_url_verdict"] == "MALICIOUS"]
+        suspicious = [u for u in url_forensics if u["final_url_verdict"] == "SUSPICIOUS"]
+        safe = [u for u in url_forensics if u["final_url_verdict"] == "SAFE"]
+
+        return jsonify({
+            "success": True,
+            "sender_domain": sender_domain,
+            "sender_org": sender_org,
+            "metrics": metrics,
+            "summary": {
+                "malicious": len(malicious),
+                "suspicious": len(suspicious),
+                "safe": len(safe),
+                "highest_individual_url_model_score": metrics.get("max_raw_url_model_score", 0.0),
+                "max_contextual_risk": max((
+                    item.get("contextual_risk", 0.0) for item in aggregation["classified_urls"]
+                ), default=0.0),
+            },
+            "malicious_urls": malicious,
+            "suspicious_urls": suspicious,
+            "all_urls": url_forensics,
+        })
+    except Exception as e:
+        logger.error(f"URL debug error: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route('/api/check-password', methods=['POST'])
 def check_password():

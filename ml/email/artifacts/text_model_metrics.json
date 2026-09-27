@@ -1,0 +1,10 @@
+{
+  "transformer_model": "all-MiniLM-L6-v2",
+  "embedding_dim": 384,
+  "best_classifier": "MLPClassifier",
+  "val_roc_auc": 0.9743,
+  "test_in_roc_auc": 0.9858,
+  "test_in_pr_auc": 0.9891,
+  "test_cross_roc_auc": 0.9888,
+  "test_cross_pr_auc": 0.9899
+}

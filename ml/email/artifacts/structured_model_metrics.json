@@ -1,0 +1,9 @@
+{
+  "best_model_type": "HistGradientBoostingClassifier",
+  "feature_count": 58,
+  "val_roc_auc": 0.9719,
+  "test_in_roc_auc": 0.9579,
+  "test_in_pr_auc": 0.9689,
+  "test_cross_roc_auc": 0.9541,
+  "test_cross_pr_auc": 0.9564
+}
