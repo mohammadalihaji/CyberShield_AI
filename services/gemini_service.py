@@ -63,7 +63,13 @@ class GeminiClient:
             return
 
         try:
-            self._client = genai.Client(api_key=self.api_key)
+            # JSON mode (response_mime_type=application/json) is only enabled
+            # on the Gemini Developer API v1beta endpoint. The SDK default is
+            # v1, which returns 400 INVALID_ARGUMENT for every scan.
+            self._client = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(api_version="v1beta"),
+            )
             self._configured = True
             logger.info("Gemini AI client initialized with model '%s'.", self.model_name)
         except Exception as exc:
