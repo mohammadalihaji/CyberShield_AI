@@ -591,7 +591,7 @@ def _compute_texture_consistency(img: Image.Image) -> Dict[str, Any]:
 # Main forensic analyzer
 # ---------------------------------------------------------------------------
 
-def prepare_analysis_image(image_path: str, max_edge: int = 1280) -> str:
+def prepare_analysis_image(image_path: str, max_edge: int = 768) -> str:
     """
     Writes a smaller JPEG for forensic analysis and Gemini.
 
@@ -628,6 +628,10 @@ def analyze_image_forensics(image_path: str) -> Dict[str, Any]:
 
     try:
         img = Image.open(image_path)
+        img = img.convert("RGB")
+        if max(img.size) > 480:
+            resample = getattr(Image, "Resampling", Image).LANCZOS
+            img.thumbnail((480, 480), resample)
         logger.info("Starting forensic analysis: %s", image_path)
 
         # Run all forensic extractors.

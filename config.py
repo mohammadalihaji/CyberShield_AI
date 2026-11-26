@@ -35,18 +35,14 @@ class Config:
     # ===================================================================
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-    # gemini-2.5-flash returns 404 for new API keys. Keep accepting the old
-    # name from Render env vars and send gemini-3.8-flash instead.
-    _GEMINI_MODEL_DEFAULT = "gemini-3.8-flash"
-    _RETIRED_GEMINI_MODELS = {
-        "gemini-2.5-flash",
-        "models/gemini-2.5-flash",
-    }
-    _requested_model = (os.getenv("GEMINI_MODEL") or _GEMINI_MODEL_DEFAULT).strip()
+    # Free-tier keys are for gemini-2.5-flash. gemini-3.8-flash is overloaded
+    # and was making image scans hit Render's 30 second cutoff.
+    _requested_model = (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+    _requested_model = _requested_model.removeprefix("models/")
     GEMINI_MODEL = (
-        _GEMINI_MODEL_DEFAULT
-        if _requested_model in _RETIRED_GEMINI_MODELS
-        else _requested_model.removeprefix("models/") or _GEMINI_MODEL_DEFAULT
+        "gemini-2.5-flash"
+        if _requested_model in {"", "gemini-3.8-flash"}
+        else _requested_model
     )
 
     GEMINI_TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))

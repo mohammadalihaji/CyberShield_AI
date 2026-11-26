@@ -123,7 +123,7 @@ def test_config():
     """Test that Gemini config loads from environment."""
     from config import Config
 
-    assert Config.GEMINI_MODEL == "gemini-3.8-flash"
+    assert Config.GEMINI_MODEL == "gemini-2.5-flash"
     assert Config.GEMINI_TEMPERATURE == 0.2
     assert Config.GEMINI_MAX_OUTPUT_TOKENS == 8192
     assert Config.GEMINI_TIMEOUT == 60

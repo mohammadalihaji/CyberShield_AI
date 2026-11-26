@@ -29,7 +29,7 @@ Built with Python Flask, SQLAlchemy, and the Google `google-genai` SDK, the plat
 | Layer | Technology |
 | --- | --- |
 | **Backend** | Python 3.10+ · Flask 3.1 · SQLAlchemy 2.0 |
-| **AI Engine** | Google Gemini (`gemini-3.8-flash`) via `google-genai` SDK |
+| **AI Engine** | Google Gemini (`gemini-2.5-flash`) via `google-genai` SDK |
 | **Database** | MySQL 8.0 (InnoDB, utf8mb4) with automatic **SQLite fallback** |
 | **Authentication** | Flask-JWT-Extended · Flask-Bcrypt · PyJWT |
 | **Frontend** | Jinja2 Templates · Vanilla JavaScript · CSS3 · Font Awesome |
@@ -149,7 +149,7 @@ At minimum, set your Gemini API key:
 ```ini
 # Gemini AI
 GEMINI_API_KEY=your_google_gemini_api_key
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-2.5-flash
 
 # Flask
 SECRET_KEY=change-me
@@ -199,7 +199,7 @@ All settings are read from environment variables (see `config.py`):
 | `UPLOAD_FOLDER` | `uploads` | Image upload directory |
 | `MAX_CONTENT_LENGTH` | `16MB` | Max upload size |
 | `GEMINI_API_KEY` | — | **Required** — Google Gemini API key |
-| `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model to use |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model to use |
 | `TEMPERATURE` | `0.2` | AI sampling temperature |
 | `MAX_OUTPUT_TOKENS` | `8192` | Max AI output length |
 | `TIMEOUT` | `60` | Gemini request timeout (seconds) |

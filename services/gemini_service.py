@@ -21,6 +21,7 @@ import re
 import time
 import json
 import logging
+import concurrent.futures
 from typing import Any, Callable, Dict, List, Optional
 
 from google import genai
@@ -367,16 +368,55 @@ class GeminiClient:
 
         self._log_request(analysis_type, prompt)
 
-        def _operation() -> str:
-            pil_image = Image.open(image_path)
-            response = self._client.models.generate_content(
-                model=self.model_name,
-                contents=[prompt, pil_image],
-                config=self._json_config(),
-            )
-            return self._extract_text(response)
+        # Render's free proxy closes the request at 30 seconds and returns an
+        # HTML "Internal Server Error" page. Stay inside that window.
+        deadline = time.monotonic() + 18
+        image_config = types.GenerateContentConfig(
+            temperature=self.temperature,
+            max_output_tokens=1024,
+            response_mime_type="application/json",
+        )
+        models: List[str] = []
+        for name in ("gemini-2.5-flash", self.model_name, "gemini-2.5-flash-lite"):
+            clean = (name or "").strip().removeprefix("models/")
+            if clean and clean not in models and clean != "gemini-3.8-flash":
+                models.append(clean)
 
-        return self._call_with_retry(_operation, analysis_type, max_retries=1)
+        last_exc: Optional[BaseException] = None
+        for model_name in models:
+            remaining = deadline - time.monotonic()
+            if remaining < 4:
+                break
+
+            def _operation(model_name: str = model_name) -> str:
+                with Image.open(image_path) as pil_image:
+                    response = self._client.models.generate_content(
+                        model=model_name,
+                        contents=[prompt, pil_image.copy()],
+                        config=image_config,
+                    )
+                return self._extract_text(response)
+
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    raw_text = pool.submit(_operation).result(timeout=min(15, remaining))
+                if raw_text:
+                    logger.info("Image scan succeeded with model '%s'.", model_name)
+                    return self._clean_json_response(raw_text)
+                last_exc = RuntimeError(f"{model_name} returned an empty response")
+            except concurrent.futures.TimeoutError as exc:
+                last_exc = exc
+                logger.error("Image model '%s' exceeded the time limit.", model_name)
+            except Exception as exc:
+                last_exc = exc
+                logger.error("Image model '%s' failed: %s", model_name, exc)
+                message = str(exc)
+                if "404" not in message and "503" not in message and "UNAVAILABLE" not in message:
+                    break
+
+        raise RuntimeError(
+            f"Gemini request failed after trying {', '.join(models)} [{analysis_type}]: {last_exc}"
+        )
 
     def generate_chat(self, prompt: str, analysis_type: str) -> str:
         """
