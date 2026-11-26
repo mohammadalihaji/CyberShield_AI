@@ -396,7 +396,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 body: formData
             })
-            .then(res => res.json())
+            .then(async (res) => {
+                const raw = await res.text();
+                try {
+                    return JSON.parse(raw);
+                } catch (parseErr) {
+                    const plain = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                    throw new Error(plain.slice(0, 180) || `Server returned status ${res.status} instead of a scan result.`);
+                }
+            })
             .then(data => {
                 imgLoader.classList.add('hidden');
                 if (data.success) {

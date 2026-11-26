@@ -591,6 +591,23 @@ def _compute_texture_consistency(img: Image.Image) -> Dict[str, Any]:
 # Main forensic analyzer
 # ---------------------------------------------------------------------------
 
+def prepare_analysis_image(image_path: str, max_edge: int = 1280) -> str:
+    """
+    Writes a smaller JPEG for forensic analysis and Gemini.
+
+    Full-resolution photos exhaust the Render instance and the request
+    dies with an HTML gateway page instead of a JSON scan result.
+    """
+    out_path = os.path.splitext(image_path)[0] + ".analysis.jpg"
+    with Image.open(image_path) as img:
+        working = img.convert("RGB")
+        if max(working.size) > max_edge:
+            resample = getattr(Image, "Resampling", Image).LANCZOS
+            working.thumbnail((max_edge, max_edge), resample)
+        working.save(out_path, format="JPEG", quality=85, optimize=True)
+    return out_path
+
+
 def analyze_image_forensics(image_path: str) -> Dict[str, Any]:
     """
     Performs comprehensive local image forensic analysis.

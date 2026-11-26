@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -36,8 +37,42 @@ database.init_db()
 def load_logged_in_user():
     """
     Attaches current authenticated user to Flask g object for request context.
+    A database error here must not turn the API response into an HTML page.
     """
-    g.user = get_current_user()
+    try:
+        g.user = get_current_user()
+    except Exception as exc:
+        logger.error("Could not load the current user: %s", exc)
+        g.user = None
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_large_upload(exc):
+    """Image uploads that exceed the limit must return JSON, not an HTML error page."""
+    message = "Image is too large. Please upload a file under 16 MB."
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": message}), 413
+    return message, 413
+
+
+@app.errorhandler(Exception)
+def handle_api_exception(exc):
+    """
+    Keep /api responses as JSON. An HTML error page makes the image checker
+    fail with 'Unexpected token <'.
+    """
+    if isinstance(exc, HTTPException):
+        if request.path.startswith("/api/"):
+            return jsonify({"success": False, "error": exc.description or exc.name}), exc.code
+        return exc.get_response()
+
+    logger.exception("Unhandled application error")
+    if request.path.startswith("/api/"):
+        return jsonify({
+            "success": False,
+            "error": "The image analysis server failed before it could return a result. Try a smaller image.",
+        }), 500
+    return "Internal Server Error", 500
 
 # ==============================================================================
 # Authentication Endpoints

@@ -376,7 +376,7 @@ class GeminiClient:
             )
             return self._extract_text(response)
 
-        return self._call_with_retry(_operation, analysis_type)
+        return self._call_with_retry(_operation, analysis_type, max_retries=1)
 
     def generate_chat(self, prompt: str, analysis_type: str) -> str:
         """
@@ -508,8 +508,9 @@ def analyze_image(image_path: str) -> Dict[str, Any]:
         return error_response("image", "Image file not found.")
 
     try:
-        # Run local forensic pre-processing.
-        from services.image_forensics import analyze_image_forensics
+        # Shrink first so forensic arrays and the Gemini upload stay small.
+        from services.image_forensics import analyze_image_forensics, prepare_analysis_image
+        image_path = prepare_analysis_image(image_path)
         forensic_data = analyze_image_forensics(image_path)
         logger.info("Image forensics extracted: %d indicators", len(forensic_data))
 
