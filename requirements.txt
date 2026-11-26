@@ -4,11 +4,11 @@ Flask-Migrate==4.1.0
 Flask-JWT-Extended==4.7.1
 Flask-Bcrypt==1.0.1
 
-SQLAlchemy==2.0.36
+SQLAlchemy>=2.0.40,<2.1
 PyMySQL==1.1.1
 cryptography==44.0.0
 # Required when Render supplies a PostgreSQL DATABASE_URL.
-psycopg2-binary==2.9.10
+psycopg2-binary>=2.9.10
 bcrypt==4.2.0
 python-dotenv==1.0.1
 PyJWT==2.10.1

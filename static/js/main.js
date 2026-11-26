@@ -40,14 +40,16 @@ document.addEventListener('DOMContentLoaded', function() {
         html = html.replace(/`(.*?)`/g, '<code>$1</code>');
         
         // Unordered lists
-        html = html.replace(/^\s*[\*\-]\s+(.*?)$/gm, '<li>$1</li>');
-        html = html.replace(/(<li>.*?<\/li>)/gs, function(m) { return '<ul>' + m + '</ul>'; });
+        html = html.replace(/^\s*[\*\-]\s+(.*?)$/gm, '<uli>$1</uli>');
+        html = html.replace(/(<uli>.*?<\/uli>)/gs, function(m) { return '<ul>' + m + '</ul>'; });
         html = html.replace(/<\/ul>\s*<ul>/g, '');
+        html = html.replace(/<(\/?)uli>/g, '<$1li>');
 
         // Ordered lists (e.g. "1. item", "2) item")
-        html = html.replace(/^\s*\d+[\.\)]\s+(.*?)$/gm, '<li>$1</li>');
-        html = html.replace(/(<li>[\s\S]*?<\/li>)/g, function(m) { return '<ol>' + m + '</ol>'; });
+        html = html.replace(/^\s*\d+[\.\)]\s+(.*?)$/gm, '<oli>$1</oli>');
+        html = html.replace(/(<oli>[\s\S]*?<\/oli>)/g, function(m) { return '<ol>' + m + '</ol>'; });
         html = html.replace(/<\/ol>\s*<ol>/g, '');
+        html = html.replace(/<(\/?)oli>/g, '<$1li>');
 
         // Paragraphs
         const lines = html.split(/\n{2,}/);

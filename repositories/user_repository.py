@@ -1,5 +1,6 @@
 from typing import Optional, List
 from datetime import datetime
+from sqlalchemy import func
 from database import get_db_session
 import models
 from auth.password_service import PasswordService
@@ -40,7 +41,7 @@ class UserRepository:
         clean_id = identifier.strip().lower()
         with get_db_session() as session:
             return session.query(models.User).filter(
-                (models.User.username == clean_id) | (models.User.email == clean_id)
+                (func.lower(models.User.username) == clean_id) | (func.lower(models.User.email) == clean_id)
             ).first()
 
     @staticmethod

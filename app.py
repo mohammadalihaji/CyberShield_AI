@@ -1,4 +1,5 @@
 import os
+import uuid
 import json
 import logging
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
@@ -68,9 +69,14 @@ def handle_api_exception(exc):
 
     logger.exception("Unhandled application error")
     if request.path.startswith("/api/"):
+        err_msg = (
+            "The image analysis server failed before it could return a result. Try a smaller image."
+            if request.path == "/api/check-image"
+            else "An internal server error occurred while processing your request."
+        )
         return jsonify({
             "success": False,
-            "error": "The image analysis server failed before it could return a result. Try a smaller image.",
+            "error": err_msg,
         }), 500
     return "Internal Server Error", 500
 
@@ -343,7 +349,8 @@ def check_image():
             return jsonify({"success": False, "error": "No file selected."}), 400
             
         filename = secure_filename(file.filename) or "uploaded_image.png"
-        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        unique_filename = f"{uuid.uuid4().hex[:12]}_{filename}"
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(save_path)
         
         result = gemini_service.analyze_image(save_path)

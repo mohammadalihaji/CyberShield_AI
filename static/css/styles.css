@@ -608,19 +608,19 @@ body {
     display: inline-block;
 }
 
-.status-badge.safe, .status-badge.strong {
+.status-badge.safe, .status-badge.strong, .status-badge.clean, .status-badge.low {
     background: rgba(0, 230, 118, 0.1);
     color: var(--color-safe);
     border: 1px solid rgba(0, 230, 118, 0.2);
 }
 
-.status-badge.suspicious, .status-badge.medium {
+.status-badge.suspicious, .status-badge.medium, .status-badge.vulnerable {
     background: rgba(255, 179, 0, 0.1);
     color: var(--color-warning);
     border: 1px solid rgba(255, 179, 0, 0.2);
 }
 
-.status-badge.malicious, .status-badge.weak {
+.status-badge.malicious, .status-badge.weak, .status-badge.high, .status-badge.critical, .status-badge.unsafe {
     background: rgba(255, 51, 102, 0.1);
     color: var(--color-danger);
     border: 1px solid rgba(255, 51, 102, 0.2);

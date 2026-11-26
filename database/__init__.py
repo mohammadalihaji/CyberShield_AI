@@ -192,9 +192,9 @@ def get_dashboard_stats(user_id: int = None) -> dict:
         # Sort combined scans by timestamp descending
         all_items.sort(key=lambda x: x['created_at'], reverse=True)
 
-        safe_count = sum(1 for item in all_items if item['risk_level'].lower() in ['safe', 'strong', 'clean'])
-        suspicious_count = sum(1 for item in all_items if item['risk_level'].lower() in ['suspicious', 'medium', 'vulnerable'])
-        malicious_count = sum(1 for item in all_items if item['risk_level'].lower() in ['malicious', 'weak', 'critical'])
+        safe_count = sum(1 for item in all_items if (item['risk_level'] or '').lower() in ['safe', 'strong', 'clean', 'low'])
+        suspicious_count = sum(1 for item in all_items if (item['risk_level'] or '').lower() in ['suspicious', 'medium', 'vulnerable'])
+        malicious_count = sum(1 for item in all_items if (item['risk_level'] or '').lower() in ['malicious', 'weak', 'critical', 'high', 'unsafe'])
 
         threats_blocked = suspicious_count + malicious_count
 

@@ -153,7 +153,7 @@
             color: #fff;
         }
 
-        .verdict-pill.safe, .verdict-pill.strong, .verdict-pill.clean {
+        .verdict-pill.safe, .verdict-pill.strong, .verdict-pill.clean, .verdict-pill.low {
             background-color: var(--risk-safe);
         }
 
@@ -161,7 +161,7 @@
             background-color: var(--risk-suspicious);
         }
 
-        .verdict-pill.malicious, .verdict-pill.weak, .verdict-pill.critical {
+        .verdict-pill.malicious, .verdict-pill.weak, .verdict-pill.high, .verdict-pill.critical, .verdict-pill.unsafe {
             background-color: var(--risk-malicious);
         }
 
@@ -447,11 +447,11 @@
             }
 
             // Decode HTML entities introduced by Jinja escaping.
-            content = content.replace(/&amp;/g, '&')
-                             .replace(/</g, '<')
-                             .replace(/>/g, '>')
-                             .replace(/"/g, '"')
-                             .replace(/&#0?39;/g, "'");
+            content = content.replace(/&lt;/g, '<')
+                             .replace(/&gt;/g, '>')
+                             .replace(/&quot;/g, '"')
+                             .replace(/&#0?39;/g, "'")
+                             .replace(/&amp;/g, '&');
 
             // --- Headings ---
             content = content.replace(/^####[ \t]+(.*?)$/gm, '<h4>$1</h4>');
@@ -471,17 +471,18 @@
 
             // --- Blockquotes ---
             content = content.replace(/^[ \t]*>[ \t]*(.+)$/gm, '<blockquote>$1</blockquote>');
-            content = content.replace(/^[ \t]*>[ \t]*(.+)$/gm, '<blockquote>$1</blockquote>');
 
             // --- Bullet lists ---
-            content = content.replace(/^[ \t]*[\*\-][ \t]+(.*)$/gm, '<li>$1</li>');
-            content = content.replace(/(<li>[\s\S]*?<\/li>)/g, function(m) { return '<ul>' + m + '</ul>'; });
+            content = content.replace(/^[ \t]*[\*\-][ \t]+(.*)$/gm, '<uli>$1</uli>');
+            content = content.replace(/(<uli>[\s\S]*?<\/uli>)/g, function(m) { return '<ul>' + m + '</ul>'; });
             content = content.replace(/<\/ul>\s*<ul>/g, '');
+            content = content.replace(/<(\/?)uli>/g, '<$1li>');
 
             // --- Numbered lists ---
-            content = content.replace(/^[ \t]*\d+\.\s+(.*)$/gm, '<li>$1</li>');
-            content = content.replace(/(<li>[\s\S]*?<\/li>)/g, function(m) { return '<ol>' + m + '</ol>'; });
+            content = content.replace(/^[ \t]*\d+\.\s+(.*)$/gm, '<oli>$1</oli>');
+            content = content.replace(/(<oli>[\s\S]*?<\/oli>)/g, function(m) { return '<ol>' + m + '</ol>'; });
             content = content.replace(/<\/ol>\s*<ol>/g, '');
+            content = content.replace(/<(\/?)oli>/g, '<$1li>');
 
             // --- Paragraphs (wrap remaining non-block text) ---
             const lines = content.split(/\n{2,}/);
