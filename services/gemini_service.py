@@ -377,9 +377,9 @@ class GeminiClient:
             response_mime_type="application/json",
         )
         models: List[str] = []
-        for name in ("gemini-2.5-flash", self.model_name, "gemini-2.5-flash-lite"):
+        for name in ("gemini-3.5-flash-lite", self.model_name):
             clean = (name or "").strip().removeprefix("models/")
-            if clean and clean not in models and clean != "gemini-3.8-flash":
+            if clean and clean not in models and clean not in Config._RETIRED_GEMINI_MODELS:
                 models.append(clean)
 
         last_exc: Optional[BaseException] = None

@@ -35,13 +35,21 @@ class Config:
     # ===================================================================
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-    # Free-tier keys are for gemini-2.5-flash. gemini-3.8-flash is overloaded
-    # and was making image scans hit Render's 30 second cutoff.
-    _requested_model = (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+    # New free API keys cannot call gemini-2.5-flash or gemini-2.5-flash-lite.
+    # Google returns 404 and names gemini-3.5-flash-lite as the replacement.
+    _GEMINI_MODEL_DEFAULT = "gemini-3.5-flash-lite"
+    _RETIRED_GEMINI_MODELS = {
+        "",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3.8-flash",
+    }
+    _requested_model = (os.getenv("GEMINI_MODEL") or _GEMINI_MODEL_DEFAULT).strip()
     _requested_model = _requested_model.removeprefix("models/")
     GEMINI_MODEL = (
-        "gemini-2.5-flash"
-        if _requested_model in {"", "gemini-3.8-flash"}
+        _GEMINI_MODEL_DEFAULT
+        if _requested_model in _RETIRED_GEMINI_MODELS
         else _requested_model
     )
 
