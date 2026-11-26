@@ -1,6 +1,9 @@
 import os
+import ssl
 import logging
 from contextlib import contextmanager
+from urllib.parse import quote_plus, urlsplit, urlunsplit, parse_qsl, urlencode
+
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -11,65 +14,123 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+
+def _ssl_connect_args():
+    """
+    Aiven MySQL requires TLS. PyMySQL does not understand ssl-mode=REQUIRED
+    on the URL, so the CA certificate is passed as a connect argument.
+    """
+    ca_path = os.getenv("SSL_CA", "certs/ca.pem")
+    ca_abs = os.path.abspath(ca_path)
+    if os.path.isfile(ca_abs):
+        ctx = ssl.create_default_context(cafile=ca_abs)
+        logger.info("MySQL TLS enabled with CA file %s", ca_abs)
+    else:
+        ctx = ssl.create_default_context()
+        logger.warning("SSL_CA file not found at %s; using default trust store.", ca_abs)
+    return {"ssl": ctx}
+
+
+def _normalize_mysql_url(url: str) -> str:
+    """Turn an Aiven Service URI into a SQLAlchemy PyMySQL URL."""
+    url = url.strip()
+    if url.startswith("mysql://"):
+        url = "mysql+pymysql://" + url[len("mysql://"):]
+
+    parts = urlsplit(url)
+    query = [
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key.lower() not in {"ssl-mode", "ssl_mode", "sslmode"}
+    ]
+    if "charset" not in {key for key, _ in query}:
+        query.append(("charset", "utf8mb4"))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
+
+
+def _mysql_url_from_parts() -> str | None:
+    db_user = os.getenv("DB_USER", "").strip()
+    db_host = os.getenv("DB_HOST", "").strip()
+    db_name = os.getenv("DB_NAME", "").strip()
+    if not (db_user and db_host and db_name):
+        return None
+
+    db_password = quote_plus(os.getenv("DB_PASSWORD", ""))
+    db_port = os.getenv("DB_PORT", "3306").strip() or "3306"
+    user = quote_plus(db_user)
+    return (
+        f"mysql+pymysql://{user}:{db_password}@{db_host}:{db_port}/{db_name}"
+        "?charset=utf8mb4"
+    )
+
+
+def _create_mysql_engine(mysql_url: str):
+    safe_target = urlsplit(mysql_url).hostname or "mysql"
+    eng = create_engine(
+        mysql_url,
+        future=True,
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        pool_size=5,
+        max_overflow=10,
+        isolation_level="READ COMMITTED",
+        connect_args=_ssl_connect_args(),
+    )
+    with eng.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    logger.info("Connected successfully to MySQL at %s.", safe_target)
+    return eng
+
+
 def build_engine():
     """
-    Builds the SQLAlchemy engine using MySQL configuration if available,
-    or falls back gracefully to SQLite if MySQL is unreachable.
+    Uses Aiven/MySQL when DATABASE_URL or DB_HOST/DB_USER/DB_NAME are set.
+    SQLite is used only when no MySQL settings exist. A failed MySQL
+    connection is not hidden behind SQLite, so tables are not created
+    in the wrong database.
     """
-    db_url = os.getenv("DATABASE_URL")
-    
-    # If DB_USER or DB_HOST is explicitly set, attempt MySQL URL
-    db_user = os.getenv("DB_USER")
-    db_password = os.getenv("DB_PASSWORD", "")
-    db_host = os.getenv("DB_HOST", "localhost")
-    db_port = os.getenv("DB_PORT", "3306")
-    db_name = os.getenv("DB_NAME", "cybershield_ai")
-    
-    if db_user and db_name:
-        mysql_url = f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?charset=utf8mb4"
+    db_url = (os.getenv("DATABASE_URL") or "").strip()
+
+    # The Aiven Service URI belongs in DATABASE_URL and overrides the split DB_* vars.
+    if db_url.startswith(("mysql://", "mysql+pymysql://")):
+        mysql_url = _normalize_mysql_url(db_url)
+    else:
+        mysql_url = _mysql_url_from_parts()
+
+    if mysql_url:
         try:
-            eng = create_engine(
-                mysql_url,
-                future=True,
-                echo=False,
-                pool_pre_ping=True,
-                pool_recycle=3600,
-                pool_size=10,
-                max_overflow=20,
-                isolation_level="READ COMMITTED"
+            return _create_mysql_engine(mysql_url)
+        except Exception as exc:
+            logger.error(
+                "MySQL connection failed (%s). Refusing SQLite fallback because "
+                "MySQL settings are present. Check Render env vars and SSL_CA.",
+                exc,
             )
-            # Test connectivity
-            with eng.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            logger.info(f"Connected successfully to MySQL Database '{db_name}' at {db_host}.")
-            return eng
-        except Exception as e:
-            logger.warning(f"MySQL connection to {db_host} failed ({e}). Falling back to configured DATABASE_URL or SQLite.")
+            raise
 
     if not db_url:
         db_url = "sqlite:///cybershield.db"
 
-    # Render and other hosts may provide postgres://; SQLAlchemy expects postgresql://
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-    # SQLite / standard URL initialization
     if db_url.startswith("sqlite"):
-        eng = create_engine(
+        logger.info("Using SQLite database (no MySQL settings found).")
+        return create_engine(
             db_url,
             future=True,
             echo=False,
-            connect_args={"check_same_thread": False}
+            connect_args={"check_same_thread": False},
         )
-    else:
-        eng = create_engine(
-            db_url,
-            future=True,
-            echo=False,
-            pool_pre_ping=True,
-            pool_recycle=3600
-        )
-    return eng
+
+    return create_engine(
+        db_url,
+        future=True,
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+    )
 
 engine = build_engine()
 
